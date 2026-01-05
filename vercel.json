@@ -3,13 +3,21 @@
   "name": "rp-trr-server-internship",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "env": {
-    "NODE_ENV": "production"
+  "public": false,
+  "functions": {
+    "dist/main.js": {
+      "memory": 1024,
+      "maxDuration": 30,
+      "runtime": "nodejs20.x"
+    }
   },
   "routes": [
     {
       "src": "/(.*)",
       "dest": "dist/main.js"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
