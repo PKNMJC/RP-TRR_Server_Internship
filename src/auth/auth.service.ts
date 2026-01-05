@@ -146,7 +146,6 @@ export class AuthService {
       throw error;
     }
   }
-  }
 
   private async exchangeLineCode(code: string): Promise<string> {
     try {
