@@ -69,6 +69,38 @@ export class AuthService {
     };
   }
 
+  getLineAuthUrl() {
+    const clientId = process.env.LINE_CHANNEL_ID || '';
+    const redirectUri = process.env.LINE_REDIRECT_URI || 'https://rp-trr-client-internship.vercel.app/callback';
+    const state = Math.random().toString(36).substring(7); // Generate random state
+    
+    if (!clientId) {
+      console.error('[LINE Auth] LINE_CHANNEL_ID not configured');
+      throw new Error('LINE credentials not configured');
+    }
+
+    const authUrl = new URL('https://api.line.me/oauth2/v2.1/authorize');
+    authUrl.searchParams.append('response_type', 'code');
+    authUrl.searchParams.append('client_id', clientId);
+    authUrl.searchParams.append('redirect_uri', redirectUri);
+    authUrl.searchParams.append('state', state);
+    authUrl.searchParams.append('scope', 'profile openid');
+
+    console.log('[LINE Auth] Generated authorization URL:', {
+      clientId,
+      redirectUri,
+      state: state.substring(0, 5) + '...',
+      scope: 'profile openid',
+    });
+
+    return {
+      auth_url: authUrl.toString(),
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      state,
+    };
+  }
+
   async lineCallback(code: string, state?: string) {
     console.log('[LINE Auth] Processing callback with code:', code.substring(0, 10) + '...');
     

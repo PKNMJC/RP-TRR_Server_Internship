@@ -20,6 +20,12 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Get('line-auth-url')
+  @Public()
+  getLineAuthUrl() {
+    return this.authService.getLineAuthUrl();
+  }
+
   @Post('line-callback')
   @Public()
   async lineCallback(@Body() dto: { code: string; state?: string }) {
