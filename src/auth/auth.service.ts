@@ -74,12 +74,13 @@ export class AuthService {
       throw new BadRequestException('Authorization code is required');
     }
 
-    // Exchange authorization code for access token
-    const lineAccessToken = await this.exchangeLineCode(code);
+    try {
+      // Exchange authorization code for access token
+      const lineAccessToken = await this.exchangeLineCode(code);
 
-    if (!lineAccessToken) {
-      throw new UnauthorizedException('Failed to exchange LINE authorization code');
-    }
+      if (!lineAccessToken) {
+        throw new UnauthorizedException('Failed to exchange LINE authorization code');
+      }
 
     // Get LINE user ID from the access token
     const lineUserId = await this.getLineUserId(lineAccessToken);
@@ -140,10 +141,29 @@ export class AuthService {
       role: user.role,
       message: 'LOGIN success via LINE',
     };
+    } catch (error: any) {
+      console.error('LINE callback error:', error);
+      throw error;
+    }
+  }
   }
 
   private async exchangeLineCode(code: string): Promise<string> {
     try {
+      const redirectUri = process.env.LINE_REDIRECT_URI || 'https://rp-trr-server-internship.vercel.app/callback';
+      const clientId = process.env.LINE_CHANNEL_ID || '';
+      const clientSecret = process.env.LINE_CHANNEL_SECRET || '';
+
+      if (!clientId || !clientSecret) {
+        console.error('LINE environment variables not set:', { 
+          clientId: !!clientId, 
+          clientSecret: !!clientSecret 
+        });
+        throw new Error('LINE credentials not configured');
+      }
+
+      console.log('Exchanging LINE code:', { code, redirectUri, clientId });
+
       const response = await fetch('https://api.line.me/oauth2/v2.1/token', {
         method: 'POST',
         headers: {
@@ -152,21 +172,23 @@ export class AuthService {
         body: new URLSearchParams({
           grant_type: 'authorization_code',
           code: code,
-          redirect_uri: process.env.LINE_REDIRECT_URI || '',
-          client_id: process.env.NEXT_PUBLIC_LIFF_ID || '',
-          client_secret: process.env.LINE_CHANNEL_SECRET || '',
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          client_secret: clientSecret,
         }).toString(),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to exchange code for access token');
+        console.error('LINE token exchange failed:', responseData);
+        throw new Error(`LINE API error: ${responseData.error_description || responseData.error || 'Unknown error'}`);
       }
 
-      const data = await response.json();
-      return data.access_token;
+      return responseData.access_token;
     } catch (error: any) {
-      console.error('Error exchanging LINE code:', error);
-      throw new UnauthorizedException('Failed to authenticate with LINE');
+      console.error('Error exchanging LINE code:', error.message);
+      throw new UnauthorizedException(`Failed to authenticate with LINE: ${error.message}`);
     }
   }
 

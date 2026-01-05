@@ -13,7 +13,9 @@ async function bootstrap() {
   // ✅ CORS middleware (สำคัญสำหรับ Vercel)
   const allowedOrigins = [
     'http://localhost:3000',
+    'http://localhost:3001',
     'https://rp-trr-client-internship.vercel.app',
+    'https://rp-trr-server-internship.vercel.app',
   ];
 
   app.use((req, res, next) => {
