@@ -20,6 +20,12 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Post('line-callback')
+  @Public()
+  async lineCallback(@Body() dto: { code: string; state?: string }) {
+    return this.authService.lineCallback(dto.code, dto.state);
+  }
+
   @Get('profile')
   getProfile(@Request() req) {
     console.log('Getting profile for user:', req.user);
