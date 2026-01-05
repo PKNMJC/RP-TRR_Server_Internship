@@ -135,9 +135,9 @@ model Ticket {
   requiredDate String?
 
   // Guest contact information (for tickets without user account)
-  guestName    String?
-  guestEmail   String?
-  guestPhone   String?
+  guestName       String?
+  guestEmail      String?
+  guestPhone      String?
   guestDepartment String?
 
   // Attachments
@@ -146,7 +146,7 @@ model Ticket {
   userId     Int?
   assignedTo Int?
 
-  user     User?        @relation("UserTickets", fields: [userId], references: [id], onDelete: SetNull)
+  user     User?       @relation("UserTickets", fields: [userId], references: [id], onDelete: SetNull)
   assignee User?       @relation("AssignedTickets", fields: [assignedTo], references: [id])
   logs     TicketLog[]
 
