@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "rp-trr-server-internship",
-  "buildCommand": "npm run build",
+  "buildCommand": "npx prisma generate && npm run build",
   "outputDirectory": "dist",
   "public": false,
   "env": {
