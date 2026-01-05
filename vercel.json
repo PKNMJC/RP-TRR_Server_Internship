@@ -4,18 +4,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "public": false,
-  "functions": {
-    "dist/main.js": {
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  },
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "dist/main.js"
-    }
-  ],
   "env": {
     "NODE_ENV": "production"
   }
