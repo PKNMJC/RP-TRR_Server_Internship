@@ -149,7 +149,7 @@ export class AuthService {
 
   private async exchangeLineCode(code: string): Promise<string> {
     try {
-      const redirectUri = process.env.LINE_REDIRECT_URI || 'https://rp-trr-server-internship.vercel.app/callback';
+      const redirectUri = process.env.LINE_REDIRECT_URI || 'https://rp-trr-client-internship.vercel.app/callback';
       const clientId = process.env.LINE_CHANNEL_ID || '';
       const clientSecret = process.env.LINE_CHANNEL_SECRET || '';
 
