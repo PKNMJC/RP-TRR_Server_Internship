@@ -70,79 +70,96 @@ export class AuthService {
   }
 
   async lineCallback(code: string, state?: string) {
+    console.log('[LINE Auth] Processing callback with code:', code.substring(0, 10) + '...');
+    
     if (!code) {
+      console.error('[LINE Auth] No authorization code provided');
       throw new BadRequestException('Authorization code is required');
     }
 
     try {
       // Exchange authorization code for access token
+      console.log('[LINE Auth] Step 1: Exchanging authorization code');
       const lineAccessToken = await this.exchangeLineCode(code);
 
       if (!lineAccessToken) {
+        console.error('[LINE Auth] Failed to get access token');
         throw new UnauthorizedException('Failed to exchange LINE authorization code');
       }
 
-    // Get LINE user ID from the access token
-    const lineUserId = await this.getLineUserId(lineAccessToken);
+      console.log('[LINE Auth] Step 2: Getting LINE user ID');
+      // Get LINE user ID from the access token
+      const lineUserId = await this.getLineUserId(lineAccessToken);
 
-    if (!lineUserId) {
-      throw new UnauthorizedException('Failed to get LINE user ID');
-    }
+      if (!lineUserId) {
+        console.error('[LINE Auth] Failed to get LINE user ID');
+        throw new UnauthorizedException('Failed to get LINE user ID');
+      }
 
-    // Check if user with this LINE ID exists
-    let user = await this.prisma.user.findFirst({
-      where: {
-        lineOALink: {
-          lineUserId: lineUserId,
-        },
-      },
-    });
+      console.log('[LINE Auth] Step 3: Checking if user exists', { lineUserId });
 
-    // If user doesn't exist, create a new user
-    if (!user) {
-      // Get LINE user profile
-      const lineProfile = await this.getLineUserProfile(lineAccessToken);
-
-      user = await this.prisma.user.create({
-        data: {
-          name: lineProfile.displayName || 'LINE User',
-          email: `line_${lineUserId}@line.com`,
-          password: await bcrypt.hash(Math.random().toString(36), 10), // Random password for LINE users
-          role: 'USER',
-          lineId: lineUserId,
+      // Check if user with this LINE ID exists
+      let user = await this.prisma.user.findFirst({
+        where: {
           lineOALink: {
-            create: {
-              lineUserId: lineUserId,
-              status: 'VERIFIED',
-            },
+            lineUserId: lineUserId,
           },
         },
       });
-    } else {
-      // Update LINE user ID if not already set
-      if (!user.lineId) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
+
+      // If user doesn't exist, create a new user
+      if (!user) {
+        console.log('[LINE Auth] Step 4a: Creating new user');
+        // Get LINE user profile
+        const lineProfile = await this.getLineUserProfile(lineAccessToken);
+
+        user = await this.prisma.user.create({
           data: {
+            name: lineProfile.displayName || 'LINE User',
+            email: `line_${lineUserId}@line.com`,
+            password: await bcrypt.hash(Math.random().toString(36), 10), // Random password for LINE users
+            role: 'USER',
             lineId: lineUserId,
+            lineOALink: {
+              create: {
+                lineUserId: lineUserId,
+                status: 'VERIFIED',
+              },
+            },
           },
         });
+        console.log('[LINE Auth] New user created', { userId: user.id });
+      } else {
+        console.log('[LINE Auth] Step 4b: Existing user found', { userId: user.id });
+        // Update LINE user ID if not already set
+        if (!user.lineId) {
+          user = await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+              lineId: lineUserId,
+            },
+          });
+        }
       }
-    }
 
-    const payload = {
-      sub: user.id,
-      role: user.role,
-    };
+      console.log('[LINE Auth] Step 5: Generating JWT token', { userId: user.id, role: user.role });
 
-    return {
-      access_token: this.jwtService.sign(payload),
-      userId: user.id,
-      role: user.role,
-      message: 'LOGIN success via LINE',
-    };
+      const payload = {
+        sub: user.id,
+        role: user.role,
+      };
+
+      const result = {
+        access_token: this.jwtService.sign(payload),
+        userId: user.id,
+        role: user.role,
+        message: 'LOGIN success via LINE',
+      };
+
+      console.log('[LINE Auth] Authentication successful', { userId: user.id, role: user.role });
+      return result;
     } catch (error: any) {
-      console.error('LINE callback error:', error);
+      console.error('[LINE Auth] Callback error:', error.message);
       throw error;
     }
   }
@@ -161,32 +178,56 @@ export class AuthService {
         throw new Error('LINE credentials not configured');
       }
 
-      console.log('Exchanging LINE code:', { code, redirectUri, clientId });
+      console.log('[LINE Auth] Exchanging authorization code for access token', {
+        code: code.substring(0, 10) + '...', // Only show first 10 chars for security
+        redirectUri,
+        clientId,
+      });
+
+      const tokenParams = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
+
+      console.log('[LINE Auth] Token request parameters:', {
+        grant_type: 'authorization_code',
+        code: code.substring(0, 10) + '...',
+        redirect_uri: redirectUri,
+        client_id: clientId,
+      });
 
       const response = await fetch('https://api.line.me/oauth2/v2.1/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: redirectUri,
-          client_id: clientId,
-          client_secret: clientSecret,
-        }).toString(),
+        body: tokenParams.toString(),
       });
 
       const responseData = await response.json();
 
       if (!response.ok) {
-        console.error('LINE token exchange failed:', responseData);
-        throw new Error(`LINE API error: ${responseData.error_description || responseData.error || 'Unknown error'}`);
+        console.error('[LINE Auth] Token exchange failed with status:', response.status);
+        console.error('[LINE Auth] Error response:', responseData);
+        
+        // Provide helpful error message
+        let errorMessage = responseData.error || 'Unknown error';
+        if (responseData.error === 'invalid_grant') {
+          if (responseData.error_description?.includes('redirect_uri')) {
+            errorMessage = `redirect_uri does not match. Registered redirect_uri in LINE Console must be: "${redirectUri}"`;
+          }
+        }
+        
+        throw new Error(`LINE API error: ${errorMessage} (${responseData.error_description || 'no description'})`);
       }
 
+      console.log('[LINE Auth] Token exchange successful, received access token');
       return responseData.access_token;
     } catch (error: any) {
-      console.error('Error exchanging LINE code:', error.message);
+      console.error('[LINE Auth] Error exchanging LINE code:', error.message);
       throw new UnauthorizedException(`Failed to authenticate with LINE: ${error.message}`);
     }
   }
