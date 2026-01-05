@@ -15,6 +15,6 @@ import { PrismaService } from '../prisma/prisma.service';
     LineOANotificationService,
     PrismaService,
   ],
-  exports: [LineOAService, LineOANotificationService],
+  exports: [LineOAService, LineOAWebhookService, LineOALinkingService, LineOANotificationService],
 })
 export class LineOAModule {}
