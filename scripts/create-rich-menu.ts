@@ -25,15 +25,15 @@ async function createRichMenu() {
         areas: [
           {
             bounds: { x: 0, y: 0, width: 1250, height: 843 },
-            action: { type: 'uri', label: '🔧 แจ้งซ่อม', uri: 'https://rp-trr-client-twxn.vercel.app/repairs/liff?action=create' },
+            action: { type: 'uri', label: '🔧 แจ้งซ่อม', uri: 'https://rp-trr-client-internship.vercel.app/repairs/liff?action=create' },
           },
           {
             bounds: { x: 1250, y: 0, width: 1250, height: 843 },
-            action: { type: 'uri', label: '📋 ตรวจสอบสถานะ', uri: 'https://rp-trr-client-twxn.vercel.app/repairs/liff?action=status' },
+            action: { type: 'uri', label: '📋 ตรวจสอบสถานะ', uri: 'https://rp-trr-client-internship.vercel.app/repairs/liff?action=status' },
           },
           {
             bounds: { x: 0, y: 843, width: 1250, height: 843 },
-            action: { type: 'uri', label: '❓ คำถามที่พบบ่อย', uri: 'https://rp-trr-client-twxn.vercel.app/repairs/liff?action=faq' },
+            action: { type: 'uri', label: '❓ คำถามที่พบบ่อย', uri: 'https://rp-trr-client-internship.vercel.app/repairs/liff?action=faq' },
           },
           {
             bounds: { x: 1250, y: 843, width: 1250, height: 843 },
