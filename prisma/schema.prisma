@@ -1,0 +1,334 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  IT
+  ADMIN
+}
+
+enum NotificationType {
+  TICKET_CREATED
+  TICKET_ASSIGNED
+  TICKET_UPDATED
+  TICKET_COMPLETED
+  TICKET_REJECTED
+  COMMENT_ADDED
+  STATUS_CHANGED
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RepairTicketStatus {
+  PENDING
+  IN_PROGRESS
+  WAITING_PARTS
+  COMPLETED
+  CANCELLED
+}
+
+enum UrgencyLevel {
+  NORMAL
+  URGENT
+  CRITICAL
+}
+
+enum ProblemCategory {
+  HARDWARE
+  SOFTWARE
+  NETWORK
+  PERIPHERAL
+  EMAIL_OFFICE365
+  ACCOUNT_PASSWORD
+  OTHER
+}
+
+enum ProblemSubcategory {
+  INTERNET_DOWN
+  SLOW_CONNECTION
+  WIFI_ISSUE
+  MONITOR_BROKEN
+  KEYBOARD_BROKEN
+  MOUSE_BROKEN
+  COMPUTER_CRASH
+  INSTALLATION
+  LICENSE
+  PERFORMANCE
+  JAM
+  NO_PRINTING
+  CARTRIDGE
+  INSTALLATION_AC
+  MALFUNCTION_AC
+  POWER_DOWN
+  LIGHT_PROBLEM
+  OTHER
+}
+
+model User {
+  id          Int     @id @default(autoincrement())
+  name        String
+  email       String  @unique
+  password    String
+  role        Role    @default(USER)
+  department  String?
+  phoneNumber String?
+  lineId      String?
+
+  tickets       Ticket[]       @relation("UserTickets")
+  assigned      Ticket[]       @relation("AssignedTickets")
+  logs          TicketLog[]
+  notifications Notification[]
+  loans         Loan[]
+  lineOALink    LineOALink?
+
+  repairTickets   RepairTicket[]    @relation("RepairUserTickets")
+  assignedRepairs RepairTicket[]    @relation("RepairAssignedTickets")
+  repairLogs      RepairTicketLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Ticket {
+  id          Int    @id @default(autoincrement())
+  ticketCode  String @unique
+  title       String
+  description String
+
+  // Problem classification
+  problemCategory    ProblemCategory
+  problemSubcategory ProblemSubcategory
+
+  // Equipment and location
+  equipmentName String
+  equipmentId   String?
+  location      String
+
+  category String
+  priority Priority
+  status   TicketStatus @default(OPEN)
+
+  // Repair-specific fields
+  notes        String? @db.Text
+  requiredDate String?
+
+  // Attachments
+  attachments Attachment[]
+
+  userId     Int
+  assignedTo Int?
+
+  user     User        @relation("UserTickets", fields: [userId], references: [id])
+  assignee User?       @relation("AssignedTickets", fields: [assignedTo], references: [id])
+  logs     TicketLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Attachment {
+  id       Int    @id @default(autoincrement())
+  ticketId Int
+  filename String
+  fileUrl  String
+  fileSize Int
+  mimeType String
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model TicketLog {
+  id        Int          @id @default(autoincrement())
+  ticketId  Int
+  status    TicketStatus
+  comment   String?
+  updatedBy Int
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  user   User   @relation(fields: [updatedBy], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        Int                @id @default(autoincrement())
+  userId    Int
+  type      NotificationType
+  status    NotificationStatus @default(UNREAD)
+  title     String
+  message   String
+  ticketId  Int?
+  actionUrl String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum LoanStatus {
+  BORROWED
+  RETURNED
+  OVERDUE
+  LOST
+}
+
+model Loan {
+  id                 Int        @id @default(autoincrement())
+  itemName           String
+  description        String?
+  quantity           Int        @default(1)
+  borrowDate         DateTime   @default(now())
+  expectedReturnDate DateTime
+  returnDate         DateTime?
+  status             LoanStatus @default(BORROWED)
+
+  // Borrower contact information
+  borrowerName       String?
+  borrowerDepartment String?
+  borrowerPhone      String?
+  borrowerLineId     String?
+
+  userId     Int
+  borrowedBy User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// LINE OA Integration Models
+enum LineLinkStatus {
+  PENDING
+  VERIFIED
+  UNLINKED
+}
+
+model LineOALink {
+  id          Int            @id @default(autoincrement())
+  userId      Int            @unique
+  lineUserId  String?
+  displayName String?
+  pictureUrl  String?
+  status      LineLinkStatus @default(PENDING)
+
+  verificationToken  String?
+  verificationExpiry DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum LineNotificationStatus {
+  SENT
+  FAILED
+  READ
+}
+
+model LineNotification {
+  id         Int                    @id @default(autoincrement())
+  lineUserId String
+  type       String
+  title      String
+  message    String
+  status     LineNotificationStatus @default(SENT)
+
+  retryCount   Int     @default(0)
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===================== Repair Ticket System =====================
+
+model RepairTicket {
+  id         Int    @id @default(autoincrement())
+  ticketCode String @unique
+
+  // Reporter Information
+  reporterName       String
+  reporterDepartment String?
+  reporterPhone      String?
+  reporterLineId     String?
+
+  // Problem Details
+  problemCategory    ProblemCategory
+  problemTitle       String
+  problemDescription String?         @db.Text
+  location           String
+
+  // Status & Priority
+  status  RepairTicketStatus @default(PENDING)
+  urgency UrgencyLevel       @default(NORMAL)
+
+  // Assignments
+  userId     Int
+  assignedTo Int?
+
+  // Additional Info
+  notes       String?   @db.Text
+  completedAt DateTime?
+
+  // Attachments
+  attachments RepairAttachment[]
+  logs        RepairTicketLog[]
+
+  // Relations
+  user     User  @relation("RepairUserTickets", fields: [userId], references: [id], onDelete: Cascade)
+  assignee User? @relation("RepairAssignedTickets", fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RepairAttachment {
+  id             Int    @id @default(autoincrement())
+  repairTicketId Int
+  filename       String
+  fileUrl        String
+  fileSize       Int
+  mimeType       String
+
+  repairTicket RepairTicket @relation(fields: [repairTicketId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model RepairTicketLog {
+  id             Int                @id @default(autoincrement())
+  repairTicketId Int
+  status         RepairTicketStatus
+  comment        String?
+  updatedBy      Int
+
+  repairTicket RepairTicket @relation(fields: [repairTicketId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [updatedBy], references: [id])
+
+  createdAt DateTime @default(now())
+}
