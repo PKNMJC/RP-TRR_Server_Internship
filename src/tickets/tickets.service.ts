@@ -27,7 +27,7 @@ export class TicketsService {
   }
 
   async create(
-    userId: number,
+    userId: number | null,
     createTicketDto: CreateTicketDto,
     files?: any[],
   ) {
@@ -47,6 +47,12 @@ export class TicketsService {
       problemCategory: createTicketDto.problemCategory || 'HARDWARE',
       problemSubcategory: createTicketDto.problemSubcategory || 'OTHER',
     };
+
+    // Add guest information if provided
+    if (createTicketDto.guestName) data.guestName = createTicketDto.guestName;
+    if (createTicketDto.guestEmail) data.guestEmail = createTicketDto.guestEmail;
+    if (createTicketDto.guestPhone) data.guestPhone = createTicketDto.guestPhone;
+    if (createTicketDto.guestDepartment) data.guestDepartment = createTicketDto.guestDepartment;
 
     // Add optional repair ticket fields if provided
     if (createTicketDto.equipmentId !== undefined) data.equipmentId = createTicketDto.equipmentId;
@@ -153,6 +159,66 @@ export class TicketsService {
             role: true,
           },
         },
+      },
+    });
+  }
+
+  async findByCode(code: string) {
+    return this.prisma.ticket.findUnique({
+      where: { ticketCode: code },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        attachments: true,
+        logs: true,
+      },
+    });
+  }
+
+  async findByEmail(email: string) {
+    return this.prisma.ticket.findMany({
+      where: {
+        OR: [
+          { user: { email } },
+          { guestEmail: email },
+        ],
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        attachments: true,
+        logs: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
   }
