@@ -210,11 +210,13 @@ export class AuthService {
         throw new Error('LINE credentials not configured');
       }
 
-      console.log('[LINE Auth] Exchanging authorization code for access token', {
-        code: code.substring(0, 10) + '...', // Only show first 10 chars for security
-        redirectUri,
-        clientId,
-      });
+      console.log('[LINE Auth] ===== LINE OAUTH DIAGNOSTIC =====');
+      console.log('[LINE Auth] Exchanging authorization code for access token');
+      console.log('[LINE Auth] Authorization Code:', code.substring(0, 10) + '...');
+      console.log('[LINE Auth] Redirect URI (from .env):', redirectUri);
+      console.log('[LINE Auth] Client ID:', clientId);
+      console.log('[LINE Auth] 📌 IMPORTANT: Verify this redirect_uri matches exactly in LINE Console!');
+      console.log('[LINE Auth] ===================================');
 
       const tokenParams = new URLSearchParams({
         grant_type: 'authorization_code',
@@ -224,12 +226,11 @@ export class AuthService {
         client_secret: clientSecret,
       });
 
-      console.log('[LINE Auth] Token request parameters:', {
-        grant_type: 'authorization_code',
-        code: code.substring(0, 10) + '...',
-        redirect_uri: redirectUri,
-        client_id: clientId,
-      });
+      console.log('[LINE Auth] Sending token request with:');
+      console.log('[LINE Auth]   - grant_type: authorization_code');
+      console.log('[LINE Auth]   - code: ' + code.substring(0, 10) + '...');
+      console.log('[LINE Auth]   - redirect_uri: ' + redirectUri);
+      console.log('[LINE Auth]   - client_id: ' + clientId);
 
       const response = await fetch('https://api.line.me/oauth2/v2.1/token', {
         method: 'POST',
@@ -242,18 +243,26 @@ export class AuthService {
       const responseData = await response.json();
 
       if (!response.ok) {
-        console.error('[LINE Auth] Token exchange failed with status:', response.status);
-        console.error('[LINE Auth] Error response:', responseData);
+        console.error('[LINE Auth] ❌ TOKEN EXCHANGE FAILED');
+        console.error('[LINE Auth] HTTP Status:', response.status);
+        console.error('[LINE Auth] Error response:', JSON.stringify(responseData, null, 2));
         
         // Provide helpful error message
         let errorMessage = responseData.error || 'Unknown error';
         if (responseData.error === 'invalid_grant') {
           if (responseData.error_description?.includes('redirect_uri')) {
-            errorMessage = `redirect_uri does not match. Registered redirect_uri in LINE Console must be: "${redirectUri}"`;
+            console.error('[LINE Auth] 🔴 REDIRECT_URI MISMATCH DETECTED!');
+            console.error('[LINE Auth] Your backend is using:');
+            console.error('[LINE Auth]   ' + redirectUri);
+            console.error('[LINE Auth] But LINE Console has a DIFFERENT Callback URL registered!');
+            console.error('[LINE Auth] 👉 FIX: Go to https://developers.line.biz/console/');
+            console.error('[LINE Auth]    Channel ID: ' + clientId);
+            console.error('[LINE Auth]    Update Callback URL to: ' + redirectUri);
+            errorMessage = `redirect_uri does not match. Backend uses: "${redirectUri}". Update LINE Console Callback URL to match this.`;
           }
         }
         
-        throw new Error(`LINE API error: ${errorMessage} (${responseData.error_description || 'no description'})`);
+        throw new Error(`LINE API error: ${errorMessage}`);
       }
 
       console.log('[LINE Auth] Token exchange successful, received access token');
