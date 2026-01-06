@@ -104,6 +104,15 @@ export class LineOAuthService {
       client_secret: clientSecret,
     });
 
+    // 🔴 DEBUG: Log exact params being sent to LINE API
+    console.log('[LINE Auth] 🔴 DETAILED TOKEN EXCHANGE DEBUG:');
+    console.log('[LINE Auth] grant_type:', 'authorization_code');
+    console.log('[LINE Auth] code:', code.substring(0, 20) + '...');
+    console.log('[LINE Auth] redirect_uri:', redirectUri);
+    console.log('[LINE Auth] client_id:', clientId);
+    console.log('[LINE Auth] client_secret:', clientSecret.substring(0, 10) + '...');
+    console.log('[LINE Auth] Sending to:', this.lineTokenEndpoint);
+
     try {
       const response = await fetch(this.lineTokenEndpoint, {
         method: 'POST',
