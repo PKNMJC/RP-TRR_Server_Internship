@@ -74,13 +74,9 @@ export class LineOAuthService {
    * @throws UnauthorizedException if exchange fails
    */
   async exchangeCodeForToken(code: string): Promise<LineCallbackResponse> {
-    // 🔴 DEBUG: Temporarily hardcoded values to test redirect_uri mismatch
-    const clientId = '2008790464'; // HARDCODE FOR DEBUG
-    const clientSecret = 'dc5f683594e324baf8fb1c46268a3b7a'; // HARDCODE FOR DEBUG
-    const redirectUri = 'https://rp-trr-client-internship.vercel.app/callback'; // HARDCODE FOR DEBUG
-
-    // Log the code to check if it's being called multiple times
-    console.log('[LINE Auth] 🔴 HARDCODED DEBUG MODE - code:', code.substring(0, 10) + '...');
+    const clientId = process.env.LINE_CHANNEL_ID || '';
+    const clientSecret = process.env.LINE_CHANNEL_SECRET || '';
+    const redirectUri = this.getRedirectUri();
 
     // Verify all env variables before token exchange
     this.logDebug('TOKEN EXCHANGE DEBUG', {
@@ -129,19 +125,24 @@ export class LineOAuthService {
         console.error('[LINE Auth] HTTP Status:', response.status);
         console.error('[LINE Auth] Error response:', JSON.stringify(responseData, null, 2));
 
-        // Check for redirect_uri mismatch specifically
-        if (responseData.error === 'invalid_grant' && 
-            responseData.error_description?.includes('redirect_uri')) {
+        // ✅ Check for redirect_uri mismatch specifically
+        // This is the most common OAuth error - frontend and backend using different redirect URIs
+        if ((responseData.error === 'invalid_grant' || responseData.error === 'invalid_request') && 
+            responseData.error_description && 
+            responseData.error_description.toLowerCase().includes('redirect_uri')) {
           console.error('[LINE Auth] 🔴 REDIRECT_URI MISMATCH DETECTED!');
-          console.error('[LINE Auth] Backend is using:', redirectUri);
-          console.error('[LINE Auth] LINE Console has a DIFFERENT Callback URL registered!');
+          console.error('[LINE Auth] Backend redirect_uri:', redirectUri);
+          console.error('[LINE Auth] Expected by LINE Console: Check your LINE Console settings');
+          console.error('[LINE Auth] Ensure LINE_REDIRECT_URI in .env matches LINE Console exactly');
           throw new UnauthorizedException(
-            `redirect_uri mismatch. Backend: "${redirectUri}". Update LINE Console Callback URL to match.`
+            `redirect_uri mismatch. ` +
+            `Backend is using: "${redirectUri}". ` +
+            `Make sure LINE_REDIRECT_URI environment variable matches your LINE Console Callback URL exactly.`
           );
         }
 
         throw new UnauthorizedException(
-          `LINE API error: ${responseData.error || 'Unknown error'}`
+          `LINE API error: ${responseData.error || 'Unknown error'} - ${responseData.error_description || ''}`
         );
       }
 
@@ -247,7 +248,33 @@ export class LineOAuthService {
    */
 
   private getRedirectUri(): string {
-    return process.env.LINE_REDIRECT_URI || 'https://rp-trr-client-internship.vercel.app/callback';
+    const redirectUri = process.env.LINE_REDIRECT_URI;
+    
+    // ✅ CRITICAL: Do NOT use fallback value
+    // redirect_uri MUST be explicitly configured in environment
+    // Using a default value causes silent redirect_uri mismatch errors
+    if (!redirectUri) {
+      throw new Error(
+        'LINE_REDIRECT_URI is not configured. ' +
+        'Set LINE_REDIRECT_URI in .env file. ' +
+        'It must match exactly with LINE Console Callback URL.'
+      );
+    }
+
+    // ✅ Validate redirect_uri format
+    if (!redirectUri.startsWith('https://')) {
+      throw new Error(
+        `LINE_REDIRECT_URI must use https:// protocol. Got: ${redirectUri}`
+      );
+    }
+
+    if (redirectUri.endsWith('/')) {
+      throw new Error(
+        `LINE_REDIRECT_URI should not end with trailing slash. Got: ${redirectUri}`
+      );
+    }
+
+    return redirectUri;
   }
 
   private generateState(): string {

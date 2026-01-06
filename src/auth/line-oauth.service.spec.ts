@@ -53,11 +53,12 @@ describe('LineOAuthService', () => {
       expect(result.redirect_uri).toBe('https://custom.com/callback');
     });
 
-    it('should use fallback redirect_uri when env not set', () => {
+    it('should throw error when LINE_REDIRECT_URI is not configured', () => {
       delete process.env.LINE_REDIRECT_URI;
-      const result = service.generateAuthUrl();
 
-      expect(result.redirect_uri).toBe('https://rp-trr-client-internship.vercel.app/callback');
+      expect(() => service.generateAuthUrl()).toThrow(
+        'LINE_REDIRECT_URI is not configured'
+      );
     });
 
     it('should throw error when LINE_CHANNEL_ID not configured', () => {
