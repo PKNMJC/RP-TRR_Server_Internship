@@ -124,6 +124,12 @@ export class LineOAuthService {
         console.error('[LINE Auth] ❌ TOKEN EXCHANGE FAILED');
         console.error('[LINE Auth] HTTP Status:', response.status);
         console.error('[LINE Auth] Error response:', JSON.stringify(responseData, null, 2));
+        console.error('[LINE Auth] Token params sent:', {
+          grant_type: 'authorization_code',
+          code: code.substring(0, 20) + '...',
+          redirect_uri: redirectUri,
+          client_id: clientId,
+        });
 
         // ✅ Check for redirect_uri mismatch specifically
         // This is the most common OAuth error - frontend and backend using different redirect URIs
@@ -138,6 +144,17 @@ export class LineOAuthService {
             `redirect_uri mismatch. ` +
             `Backend is using: "${redirectUri}". ` +
             `Make sure LINE_REDIRECT_URI environment variable matches your LINE Console Callback URL exactly.`
+          );
+        }
+
+        // ✅ Check for code_verifier/code_challenge mismatch (PKCE related)
+        if (responseData.error === 'invalid_grant' && 
+            responseData.error_description && 
+            responseData.error_description.toLowerCase().includes('code_verifier')) {
+          console.error('[LINE Auth] 🔴 CODE_VERIFIER MISMATCH - Authorization code may have expired');
+          console.error('[LINE Auth] Try logging in again - authorization codes expire after 10 minutes');
+          throw new UnauthorizedException(
+            `Authorization code expired or invalid. Please try logging in again.`
           );
         }
 
