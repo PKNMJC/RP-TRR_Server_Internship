@@ -74,9 +74,13 @@ export class LineOAuthService {
    * @throws UnauthorizedException if exchange fails
    */
   async exchangeCodeForToken(code: string): Promise<LineCallbackResponse> {
-    const clientId = process.env.LINE_CHANNEL_ID || '';
-    const clientSecret = process.env.LINE_CHANNEL_SECRET || '';
-    const redirectUri = this.getRedirectUri();
+    // 🔴 DEBUG: Temporarily hardcoded values to test redirect_uri mismatch
+    const clientId = '2008790464'; // HARDCODE FOR DEBUG
+    const clientSecret = 'dc5f683594e324baf8fb1c46268a3b7a'; // HARDCODE FOR DEBUG
+    const redirectUri = 'https://rp-trr-client-internship.vercel.app/callback'; // HARDCODE FOR DEBUG
+
+    // Log the code to check if it's being called multiple times
+    console.log('[LINE Auth] 🔴 HARDCODED DEBUG MODE - code:', code.substring(0, 10) + '...');
 
     // Verify all env variables before token exchange
     this.logDebug('TOKEN EXCHANGE DEBUG', {
