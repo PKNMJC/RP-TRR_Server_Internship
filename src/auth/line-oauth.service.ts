@@ -279,19 +279,17 @@ export class LineOAuthService {
     }
 
     // ✅ Validate redirect_uri format
-    if (!redirectUri.startsWith('https://')) {
+    if (!redirectUri.startsWith('https://') && !redirectUri.startsWith('http://')) {
       throw new Error(
-        `LINE_REDIRECT_URI must use https:// protocol. Got: ${redirectUri}`
+        `LINE_REDIRECT_URI must use https:// or http:// protocol. Got: ${redirectUri}`
       );
     }
 
-    if (redirectUri.endsWith('/')) {
-      throw new Error(
-        `LINE_REDIRECT_URI should not end with trailing slash. Got: ${redirectUri}`
-      );
-    }
-
-    return redirectUri;
+    // ✅ Remove trailing slash if present for consistency
+    // LINE Console may have trailing slash but we normalize it
+    const normalizedUri = redirectUri.endsWith('/') ? redirectUri.slice(0, -1) : redirectUri;
+    
+    return normalizedUri;
   }
 
   private generateState(): string {
