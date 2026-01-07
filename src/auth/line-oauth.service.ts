@@ -266,30 +266,28 @@ export class LineOAuthService {
 
   private getRedirectUri(): string {
     const redirectUri = process.env.LINE_REDIRECT_URI;
-    
+
     // ✅ CRITICAL: Do NOT use fallback value
     // redirect_uri MUST be explicitly configured in environment
-    // Using a default value causes silent redirect_uri mismatch errors
     if (!redirectUri) {
       throw new Error(
         'LINE_REDIRECT_URI is not configured. ' +
-        'Set LINE_REDIRECT_URI in .env file. ' +
+        'Set LINE_REDIRECT_URI in environment variables. ' +
         'It must match exactly with LINE Console Callback URL.'
       );
     }
 
-    // ✅ Validate redirect_uri format
+    // ✅ Validate redirect_uri protocol
     if (!redirectUri.startsWith('https://') && !redirectUri.startsWith('http://')) {
       throw new Error(
         `LINE_REDIRECT_URI must use https:// or http:// protocol. Got: ${redirectUri}`
       );
     }
 
-    // ✅ Remove trailing slash if present for consistency
-    // LINE Console may have trailing slash but we normalize it
-    const normalizedUri = redirectUri.endsWith('/') ? redirectUri.slice(0, -1) : redirectUri;
-    
-    return normalizedUri;
+    // IMPORTANT: return the environment value exactly as-is
+    // LINE requires exact match between the authorization request redirect_uri
+    // and the value registered in the LINE Console. Do not normalize trailing slash.
+    return redirectUri;
   }
 
   private generateState(): string {
