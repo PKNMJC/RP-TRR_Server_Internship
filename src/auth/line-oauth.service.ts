@@ -252,10 +252,8 @@ export class LineOAuthService {
       return false;
     }
 
-    if (redirectUri.endsWith('/')) {
-      console.warn('[LINE Auth] redirect_uri should not end with /');
-      return false;
-    }
+    // Allow redirect URIs both with and without trailing slash
+    // but prefer explicit configuration in environment variables
 
     return true;
   }
@@ -284,10 +282,11 @@ export class LineOAuthService {
       );
     }
 
-    // IMPORTANT: return the environment value exactly as-is
-    // LINE requires exact match between the authorization request redirect_uri
-    // and the value registered in the LINE Console. Do not normalize trailing slash.
-    return redirectUri;
+    // Normalize: ensure redirect URI ends with a trailing slash to match
+    // common LINE Console configuration which may include the trailing slash.
+    // This makes the authorization URL and token exchange use the same value.
+    const normalized = redirectUri.endsWith('/') ? redirectUri : redirectUri + '/';
+    return normalized;
   }
 
   private generateState(): string {
