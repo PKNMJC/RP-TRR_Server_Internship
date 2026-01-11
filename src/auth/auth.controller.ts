@@ -26,6 +26,18 @@ export class AuthController {
     return this.authService.getLineAuthUrl();
   }
 
+  // 🔴 DEBUG: Check what redirect_uri is actually being used on Vercel
+  @Get('debug-redirect-uri')
+  @Public()
+  debugRedirectUri() {
+    const redirectUri = process.env.LINE_REDIRECT_URI;
+    return {
+      LINE_REDIRECT_URI: redirectUri,
+      hasTrailingSlash: redirectUri?.endsWith('/'),
+      message: 'This should match LINE Console Callback URL exactly',
+    };
+  }
+
   @Post('line-callback')
   @Public()
   async lineCallback(@Body() dto: { code: string; state?: string }) {
