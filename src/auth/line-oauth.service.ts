@@ -282,11 +282,11 @@ export class LineOAuthService {
       );
     }
 
-    // Normalize: ensure redirect URI ends with a trailing slash to match
-    // common LINE Console configuration which may include the trailing slash.
-    // This makes the authorization URL and token exchange use the same value.
-    const normalized = redirectUri.endsWith('/') ? redirectUri : redirectUri + '/';
-    return normalized;
+    // ✅ CRITICAL: Return EXACTLY as configured - no normalization!
+    // The redirect_uri MUST match byte-for-byte with LINE Console Callback URL.
+    // Do NOT add or remove trailing slash - use exactly what's in env.
+    console.log('[LINE Auth] Using redirect_uri exactly as configured:', redirectUri);
+    return redirectUri;
   }
 
   private generateState(): string {
