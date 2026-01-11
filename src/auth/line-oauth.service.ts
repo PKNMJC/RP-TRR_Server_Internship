@@ -21,7 +21,7 @@ export interface LineUserProfile {
 
 @Injectable()
 export class LineOAuthService {
-  private readonly lineAuthEndpoint = 'https://api.line.me/oauth2/v2.1/authorize';
+  private readonly lineAuthEndpoint = 'https://access.line.me/oauth2/v2.1/authorize';
   private readonly lineTokenEndpoint = 'https://api.line.me/oauth2/v2.1/token';
   private readonly lineTokenInfoEndpoint = 'https://api.line.me/v2/oauth/tokeninfo';
   private readonly lineProfileEndpoint = 'https://api.line.me/v2/profile';
