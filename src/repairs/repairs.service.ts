@@ -93,29 +93,34 @@ export class RepairsService {
     });
 
     // Handle file uploads
+    // Handle file uploads
     if (files && files.length > 0) {
-      const uploadsDir = this.ensureUploadsDir();
-      const attachments = files.map((file) => {
-        const filename = `${ticketCode}-${Date.now()}-${file.originalname}`;
-        const filePath = path.join(uploadsDir, filename);
-        
-        fs.writeFileSync(filePath, file.buffer);
-
-        return {
-          repairTicketId: ticket.id,
-          filename: file.originalname,
-          fileUrl: `/uploads/repairs/${filename}`,
-          fileSize: file.size,
-          mimeType: file.mimetype,
-        };
-      });
-
-      await this.prisma.repairAttachment.createMany({
-        data: attachments,
-      });
-
-      // Fetch updated ticket with attachments
-      return this.findOne(ticket.id);
+      if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+          this.logger.warn('File upload skipped on serverless environment (no persistent storage configured)');
+          // Future: Implement S3/Supabase storage here
+      } else {
+          const uploadsDir = this.ensureUploadsDir();
+          const attachments = files.map((file) => {
+            const filename = `${ticketCode}-${Date.now()}-${file.originalname}`;
+            const filePath = path.join(uploadsDir, filename);
+            
+            fs.writeFileSync(filePath, file.buffer);
+    
+            return {
+              repairTicketId: ticket.id,
+              filename: file.originalname,
+              fileUrl: `/uploads/repairs/${filename}`,
+              fileSize: file.size,
+              mimeType: file.mimetype,
+            };
+          });
+    
+          await this.prisma.repairAttachment.createMany({
+            data: attachments,
+          });
+          
+          return this.findOne(ticket.id);
+      }
     }
 
     return ticket;
