@@ -289,5 +289,31 @@ export class UsersService {
 
     return user;
   }
+
+  /**
+   * Get or create a Guest user for anonymous repairs
+   */
+  async getOrCreateGuestUser() {
+    const guestEmail = 'guest@repair-system.local';
+    
+    let guest = await this.prisma.user.findUnique({
+      where: { email: guestEmail },
+    });
+
+    if (!guest) {
+      const hashedPassword = await bcrypt.hash('guest_password', 10);
+      guest = await this.prisma.user.create({
+        data: {
+          email: guestEmail,
+          name: 'Guest User',
+          password: hashedPassword,
+          role: 'USER',
+          department: 'General',
+        },
+      });
+    }
+
+    return guest;
+  }
 }
 

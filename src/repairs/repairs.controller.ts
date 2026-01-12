@@ -66,37 +66,29 @@ export class RepairsController {
       // ค้นหา user โดย LINE User ID
       let userId: number;
       
-      if (!createRepairTicketDto.reporterLineId) {
-        logger.warn('LINE User ID is missing');
-        throw new HttpException(
-          'LINE User ID is required',
-          HttpStatus.BAD_REQUEST
+      let user: any = null;
+
+      if (createRepairTicketDto.reporterLineId) {
+         user = await this.repairsService.findUserByLineId(
+          createRepairTicketDto.reporterLineId
         );
+        
+        if (!user) {
+          logger.log(`User not found for LINE ID ${createRepairTicketDto.reporterLineId}. Auto-creating user...`);
+          try {
+            user = await this.usersService.createUserFromLineId(
+              createRepairTicketDto.reporterLineId
+            );
+          } catch (createError) {
+             logger.error('Failed to auto-create user, falling back to guest:', createError);
+          }
+        }
       }
 
-      let user = await this.repairsService.findUserByLineId(
-        createRepairTicketDto.reporterLineId
-      );
-      
+      // If still no user (no Line ID provided OR auto-create failed), use Guest
       if (!user) {
-        logger.log(`User not found for LINE ID ${createRepairTicketDto.reporterLineId}. Auto-creating user...`);
-        // Auto-create user from LINE ID if doesn't exist
-        try {
-          user = await this.usersService.createUserFromLineId(
-            createRepairTicketDto.reporterLineId
-          );
-          logger.log(`User auto-created: ${user!.id} for LINE ID ${createRepairTicketDto.reporterLineId}`);
-        } catch (createError) {
-          logger.error('Failed to auto-create user:', createError);
-          throw new HttpException(
-            {
-              statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-              message: 'Failed to create user account',
-              error: 'USER_CREATION_FAILED',
-            },
-            HttpStatus.INTERNAL_SERVER_ERROR
-          );
-        }
+        logger.log('Using Guest User for ticket creation');
+        user = await this.usersService.getOrCreateGuestUser();
       }
 
       userId = user!.id;
