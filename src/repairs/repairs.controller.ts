@@ -196,6 +196,27 @@ export class RepairsController {
   }
 
   /**
+   * Get user tickets for LIFF (Public endpoint with LINE ID verification)
+   */
+  @SetMetadata('isPublic', true)
+  @Get('liff/my-tickets')
+  async getLiffUserTickets(@Query('lineUserId') lineUserId: string) {
+    if (!lineUserId) {
+      throw new HttpException(
+        'LINE User ID is required',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    const user = await this.repairsService.findUserByLineId(lineUserId);
+    if (!user) {
+      return []; // Return empty if user not found (not linked yet)
+    }
+
+    return this.repairsService.getUserTickets(user.id);
+  }
+
+  /**
    * Create a new repair ticket (Protected endpoint for authenticated users)
    */
   @Post()
