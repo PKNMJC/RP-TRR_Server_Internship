@@ -39,7 +39,11 @@ export class TicketsController {
   @Get()
   findAll(@Request() req: any) {
     // Show all tickets for IT/ADMIN, only user's tickets for regular users
-    const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'IT';
+    const userRole = req.user?.role;
+    const isAdmin = userRole === 'ADMIN' || userRole === 'IT';
+    
+    console.log(`GET /api/tickets - User: ${req.user?.id}, Role: ${userRole}, IsAdmin/IT: ${isAdmin}`);
+    
     return this.ticketsService.findAll(isAdmin ? undefined : req.user.id);
   }
 

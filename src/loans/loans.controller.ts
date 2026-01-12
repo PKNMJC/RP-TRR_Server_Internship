@@ -61,20 +61,23 @@ export class LoansController {
   @Get()
   async findAll(@Request() req: any) {
     try {
-      console.log('GET /api/loans - Full request.user:', req.user);
-      console.log('GET /api/loans - req.user?.sub:', req.user?.sub);
-      console.log('GET /api/loans - req.user?.id:', req.user?.id);
+      console.log('GET /api/loans - User:', req.user);
       
       const userId = req.user?.sub || req.user?.id;
+      const userRole = req.user?.role;
+
       if (!userId) {
-        console.error('GET /api/loans - No userId found in JWT');
         throw new BadRequestException('User ID not found');
       }
+
+      // If user is ADMIN or IT, they can see all loans (pass null/undefined)
+      // Otherwise, they can only see their own loans
+      const isStaff = userRole === 'ADMIN' || userRole === 'IT';
+      const searchId = isStaff ? null : userId;
       
-      console.log('GET /api/loans - Using userId:', userId);
-      const loans = await this.loansService.findAll(userId);
-      console.log('GET /api/loans - Found loans:', loans);
-      return loans;
+      console.log(`GET /api/loans - Role: ${userRole}, Fetching for: ${isStaff ? 'ALL' : userId}`);
+      
+      return await this.loansService.findAll(searchId);
     } catch (error: any) {
       console.error('GET /api/loans - Error:', error);
       throw new BadRequestException(error.message);
