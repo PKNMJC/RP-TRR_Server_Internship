@@ -602,7 +602,7 @@ export class LineOANotificationService {
     const statusColor = this.getStatusColor(status);
     const statusThai = this.getStatusThai(status);
     // ลิงก์ไปยัง LIFF หรือหน้าติดตามสถานะ
-    const trackingUrl = `https://liff.line.me/${process.env.LINE_LIFF_ID}/history?id=${ticketCode}`;
+    const trackingUrl = `https://liff.line.me/${process.env.LINE_LIFF_ID}?action=history&id=${ticketCode}`;
 
     return {
       type: 'bubble',

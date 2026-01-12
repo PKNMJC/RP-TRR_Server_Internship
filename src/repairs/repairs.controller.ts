@@ -146,6 +146,56 @@ export class RepairsController {
   }
 
   /**
+   * Get ticket details for LIFF (Public endpoint with LINE ID verification)
+   */
+  @SetMetadata('isPublic', true)
+  @Get('liff/ticket/:code')
+  async getTicketForLiff(
+    @Param('code') code: string,
+    @Query('lineUserId') lineUserId: string,
+  ) {
+    const logger = new Logger('RepairsController.getTicketForLiff');
+    
+    if (!lineUserId) {
+      throw new HttpException(
+        'LINE User ID is required',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    // 1. Find user by LINE ID to verify identity
+    const user = await this.repairsService.findUserByLineId(lineUserId);
+    if (!user) {
+       throw new HttpException(
+        'User not found or not linked to LINE',
+        HttpStatus.FORBIDDEN
+      );
+    }
+
+    // 2. Find ticket
+    const ticket = await this.repairsService.findByCode(code);
+    if (!ticket) {
+      throw new HttpException(
+        'Ticket not found',
+        HttpStatus.NOT_FOUND
+      );
+    }
+
+    // 3. Verify ownership (allow if user is owner OR user is IT/Admin)
+    const isOwner = ticket.userId === user.id;
+    const isAdmin = user.role === 'ADMIN' || user.role === 'IT';
+
+    if (!isOwner && !isAdmin) {
+      throw new HttpException(
+        'You do not have permission to view this ticket',
+        HttpStatus.FORBIDDEN
+      );
+    }
+
+    return ticket;
+  }
+
+  /**
    * Create a new repair ticket (Protected endpoint for authenticated users)
    */
   @Post()
