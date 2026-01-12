@@ -491,6 +491,7 @@ export class LineOANotificationService {
    */
   private createRepairTicketFlexMessage(payload: RepairTicketNotificationPayload): line.FlexContainer {
     const urgencyColor = this.getUrgencyColor(payload.urgency);
+    const urgencyText = this.getUrgencyThai(payload.urgency);
     const detailUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/repairs?id=${payload.ticketCode}`;
 
     return {
@@ -509,7 +510,7 @@ export class LineOANotificationService {
           },
           {
             type: 'text',
-            text: payload.urgency === 'NORMAL' ? 'ทั่วไป' : payload.urgency,
+            text: urgencyText,
             color: '#FFFFFF',
             size: 'xs',
             margin: 'sm',
@@ -599,6 +600,7 @@ export class LineOANotificationService {
    */
   private createStatusUpdateFlexMessage(ticketCode: string, status: string, message: string): line.FlexContainer {
     const statusColor = this.getStatusColor(status);
+    const statusThai = this.getStatusThai(status);
     // ลิงก์ไปยัง LIFF หรือหน้าติดตามสถานะ
     const trackingUrl = `https://liff.line.me/${process.env.LINE_LIFF_ID}/history?id=${ticketCode}`;
 
@@ -649,7 +651,7 @@ export class LineOANotificationService {
               },
               {
                 type: 'text',
-                text: status,
+                text: statusThai,
                 size: 'xxl',
                 weight: 'bold',
                 color: statusColor,
@@ -745,6 +747,26 @@ export class LineOANotificationService {
       case 'CANCELLED': return '#95A5A6';
       case 'PENDING': return '#E67E22';
       default: return '#34495E';
+    }
+  }
+
+  private getStatusThai(status: string): string {
+    switch (status) {
+      case 'PENDING': return 'รอดำเนินการ';
+      case 'IN_PROGRESS': return 'กำลังดำเนินการ';
+      case 'WAITING_PARTS': return 'รออะไหล่';
+      case 'COMPLETED': return 'เสร็จสิ้น';
+      case 'CANCELLED': return 'ยกเลิก';
+      default: return status;
+    }
+  }
+
+  private getUrgencyThai(urgency: string): string {
+    switch (urgency) {
+      case 'NORMAL': return 'ทั่วไป';
+      case 'URGENT': return 'ด่วน';
+      case 'CRITICAL': return 'ด่วนที่สุด';
+      default: return urgency;
     }
   }
 }
