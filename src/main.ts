@@ -1,53 +1,41 @@
 import 'dotenv/config';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as express from 'express';
 
-async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // ✅ CORS middleware (สำคัญสำหรับ Vercel)
+  // ✅ CORS Configuration
+  // Define allowed origins based on environment or default to common development ports
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
     'https://rp-trr-client-internship.vercel.app',
-    'https://rp-trr-server-internship.vercel.app/',
-    process.env.FRONTEND_URL || '',
+    'https://rp-trr-server-internship.vercel.app',
+    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
   ];
 
-  app.use((req, res, next) => {
-    const origin = req.headers.origin as string;
-
-    if (allowedOrigins.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
-    }
-
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-    );
-    res.header(
-      'Access-Control-Allow-Methods',
-      'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    );
-    res.header('Access-Control-Allow-Credentials', 'true');
-
-    // ✅ ตอบ preflight ทันที
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(204);
-    }
-
-    next();
-  });
-
-  // (เปิด CORS แบบ static ไว้ให้ Nest รู้)
+  // Enable CORS using NestJS built-in method
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        const logger = new Logger('CORS');
+        logger.warn(`Blocked request from origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    allowedHeaders: 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
   });
 
   app.useGlobalPipes(
@@ -60,6 +48,6 @@ async function bootstrap() {
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
   await app.listen(port);
-}
+  console.log(`Application is running on: ${await app.getUrl()}`);
 
 bootstrap();
