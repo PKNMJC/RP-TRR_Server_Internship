@@ -4,13 +4,13 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as express from 'express';
 
+async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // ✅ CORS Configuration
-  // Define allowed origins based on environment or default to common development ports
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
@@ -19,10 +19,8 @@ import * as express from 'express';
     ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
   ];
 
-  // Enable CORS using NestJS built-in method
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
       
       if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
@@ -49,5 +47,6 @@ import * as express from 'express';
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
+}
 
 bootstrap();
