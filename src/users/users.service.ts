@@ -6,11 +6,18 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async getAllUsers(page: number = 1, limit: number = 10) {
+  async getAllUsers(page: number = 1, limit: number = 10, roles?: string) {
     const skip = (page - 1) * limit;
+    
+    const where: any = {};
+    if (roles) {
+      const rolesArray = roles.split(',').map(r => r.trim());
+      where.role = { in: rolesArray };
+    }
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
+        where,
         select: {
           id: true,
           name: true,
@@ -34,7 +41,7 @@ export class UsersService {
           createdAt: 'desc',
         },
       }),
-      this.prisma.user.count(),
+      this.prisma.user.count({ where }),
     ]);
 
     return {

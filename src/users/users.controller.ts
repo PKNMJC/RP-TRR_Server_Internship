@@ -25,6 +25,7 @@ export class UsersController {
   async getAllUsers(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
+    @Query('roles') roles?: string,
   ) {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -33,7 +34,7 @@ export class UsersController {
       throw new BadRequestException('Page and limit must be greater than 0');
     }
 
-    return this.usersService.getAllUsers(pageNum, limitNum);
+    return this.usersService.getAllUsers(pageNum, limitNum, roles);
   }
 
   @Get('it-staff')
