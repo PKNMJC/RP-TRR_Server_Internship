@@ -384,34 +384,11 @@ export class LineOANotificationService {
         };
       }
 
-      // สร้าง message สำหรับ IT team
-      const urgencyEmoji = {
-        NORMAL: '🟢',
-        URGENT: '🟡',
-        CRITICAL: '🔴',
-      };
-
+      // สร้าง message สำหรับ IT team (Flex Message)
       const message: line.Message = {
-        type: 'template',
-        altText: `มีรายการแจ้งซ่อมใหม่: ${payload.ticketCode}`,
-        template: {
-          type: 'buttons',
-          text: `🔔 มีรายการแจ้งซ่อมใหม่\n\n` +
-                `เลขที่: ${payload.ticketCode}\n` +
-                `${urgencyEmoji[payload.urgency]} ความเร่งด่วน: ${payload.urgency}\n` +
-                `👤 ผู้แจ้ง: ${payload.reporterName}\n` +
-                `部: ${payload.department || 'ไม่ระบุ'}\n` +
-                `🔧 ปัญหา: ${payload.problemTitle}\n` +
-                `📍 สถานที่: ${payload.location}\n` +
-                `🕐 เวลา: ${payload.createdAt}`,
-          actions: [
-            {
-              type: 'uri',
-              label: 'ดูรายละเอียด',
-              uri: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/repairs?id=${payload.ticketCode}`,
-            },
-          ],
-        },
+        type: 'flex',
+        altText: `งานเข้าใหม่: ${payload.ticketCode}`,
+        contents: this.createRepairTicketFlexMessage(payload),
       };
 
       // ส่ง notification ไปยัง IT team
@@ -478,20 +455,10 @@ export class LineOANotificationService {
         channelAccessToken: this.channelAccessToken,
       });
 
-      const statusEmoji = {
-        PENDING: '⏳',
-        IN_PROGRESS: '🟡',
-        WAITING_PARTS: '🔵',
-        COMPLETED: '✅',
-        CANCELLED: '❌',
-      };
-
       const notificationMessage: line.Message = {
-        type: 'text',
-        text: `${statusEmoji[status]} รายการแจ้งซ่อม ${ticketCode}\n` +
-              `สถานะ: ${status}\n\n` +
-              `${message}\n\n` +
-              `กดดูสถานะปัจจุบันจากเมนูด้านล่าง`,
+        type: 'flex',
+        altText: `อัปเดตสถานะ: ${ticketCode}`,
+        contents: this.createStatusUpdateFlexMessage(ticketCode, status, message),
       };
 
       await client.pushMessage(lineLink.lineUserId, notificationMessage);
@@ -516,6 +483,268 @@ export class LineOANotificationService {
         success: false,
         error: error.message,
       };
+    }
+  }
+
+  /**
+   * สร้าง Flex Message สำหรับงานซ่อมใหม่ (สำหรับ IT)
+   */
+  private createRepairTicketFlexMessage(payload: RepairTicketNotificationPayload): line.FlexContainer {
+    const urgencyColor = this.getUrgencyColor(payload.urgency);
+    const detailUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/repairs?id=${payload.ticketCode}`;
+
+    return {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'text',
+            text: 'แจ้งซ่อมใหม่',
+            weight: 'bold',
+            color: '#FFFFFF',
+            size: 'lg',
+          },
+          {
+            type: 'text',
+            text: payload.urgency === 'NORMAL' ? 'ทั่วไป' : payload.urgency,
+            color: '#FFFFFF',
+            size: 'xs',
+            margin: 'sm',
+          },
+        ],
+        backgroundColor: urgencyColor,
+        paddingAll: 'lg',
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'text',
+            text: payload.ticketCode,
+            weight: 'bold',
+            size: 'xl',
+            color: '#333333',
+            align: 'center',
+          },
+          {
+            type: 'separator',
+            margin: 'md',
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'md',
+            spacing: 'sm',
+            contents: [
+              this.createDetailRow('ผู้แจ้ง', payload.reporterName),
+              this.createDetailRow('แผนก', payload.department || '-'),
+              this.createDetailRow('สถานที่', payload.location),
+              this.createDetailRow('เวลา', new Date(payload.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })),
+            ],
+          },
+          {
+            type: 'separator',
+            margin: 'md',
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'md',
+            spacing: 'xs',
+            contents: [
+              {
+                type: 'text',
+                text: 'รายละเอียดปัญหา:',
+                size: 'xs',
+                color: '#aaaaaa',
+              },
+              {
+                type: 'text',
+                text: payload.problemTitle,
+                size: 'sm',
+                color: '#555555',
+                wrap: true,
+                weight: 'bold',
+              },
+            ],
+          },
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            color: urgencyColor,
+            action: {
+              type: 'uri',
+              label: 'รับเรื่อง / ดูรายละเอียด',
+              uri: detailUrl,
+            },
+          },
+        ],
+        paddingAll: 'md',
+      },
+    };
+  }
+
+  /**
+   * สร้าง Flex Message สำหรับอัปเดตสถานะ (สำหรับ User)
+   */
+  private createStatusUpdateFlexMessage(ticketCode: string, status: string, message: string): line.FlexContainer {
+    const statusColor = this.getStatusColor(status);
+    // ลิงก์ไปยัง LIFF หรือหน้าติดตามสถานะ
+    const trackingUrl = `https://liff.line.me/${process.env.LINE_LIFF_ID}/history?id=${ticketCode}`;
+
+    return {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'horizontal',
+        contents: [
+          {
+            type: 'text',
+            text: 'อัปเดตสถานะ',
+            weight: 'bold',
+            color: '#FFFFFF',
+            size: 'md',
+            flex: 1,
+            gravity: 'center',
+          },
+          {
+            type: 'text',
+            text: ticketCode,
+            weight: 'bold',
+            color: '#FFFFFF',
+            size: 'xs',
+            flex: 0,
+            align: 'end',
+            gravity: 'center',
+          },
+        ],
+        backgroundColor: statusColor,
+        paddingAll: 'lg',
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'box',
+            layout: 'vertical',
+            contents: [
+              {
+                type: 'text',
+                text: 'สถานะล่าสุด',
+                size: 'xs',
+                color: '#aaaaaa',
+                align: 'center',
+              },
+              {
+                type: 'text',
+                text: status,
+                size: 'xxl',
+                weight: 'bold',
+                color: statusColor,
+                align: 'center',
+                margin: 'sm',
+              },
+            ],
+          },
+          {
+            type: 'separator',
+            margin: 'lg',
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'lg',
+            spacing: 'sm',
+            contents: [
+              {
+                type: 'text',
+                text: 'ข้อความจากเจ้าหน้าที่:',
+                size: 'xs',
+                color: '#aaaaaa',
+              },
+              {
+                type: 'text',
+                text: message || '-',
+                size: 'sm',
+                color: '#444444',
+                wrap: true,
+              },
+            ],
+          },
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            style: 'secondary',
+            action: {
+              type: 'uri',
+              label: 'ดูรายละเอียดงานซ่อม',
+              uri: trackingUrl,
+            },
+          },
+        ],
+        paddingAll: 'md',
+      },
+    };
+  }
+
+  private createDetailRow(label: string, value: string): line.FlexBox {
+    return {
+      type: 'box',
+      layout: 'baseline',
+      contents: [
+        {
+          type: 'text',
+          text: label,
+          color: '#aaaaaa',
+          size: 'sm',
+          flex: 2,
+        },
+        {
+          type: 'text',
+          text: value,
+          wrap: true,
+          color: '#666666',
+          size: 'sm',
+          flex: 5,
+        },
+      ],
+    };
+  }
+
+  private getUrgencyColor(urgency: string): string {
+    switch (urgency) {
+      case 'CRITICAL': return '#D32F2F'; // Red
+      case 'URGENT': return '#F57C00'; // Orange
+      case 'NORMAL': 
+      default: return '#2E7D32'; // Green
+    }
+  }
+
+  private getStatusColor(status: string): string {
+    switch (status) {
+      case 'COMPLETED': return '#2ECC71'; 
+      case 'IN_PROGRESS': return '#3498DB';
+      case 'WAITING_PARTS': return '#F39C12';
+      case 'CANCELLED': return '#95A5A6';
+      case 'PENDING': return '#E67E22';
+      default: return '#34495E';
     }
   }
 }
