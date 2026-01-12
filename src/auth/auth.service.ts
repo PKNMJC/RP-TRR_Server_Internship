@@ -55,7 +55,18 @@ export class AuthService {
 
     const isMatch = await bcrypt.compare(dto.password, user.password);
     if (!isMatch) {
-      throw new UnauthorizedException('Email or password incorrect');
+      // Check if password is stored as plain text (legacy/manual insert)
+      if (dto.password === user.password) {
+         // Auto-fix: Hash the password and update db
+         const hash = await bcrypt.hash(dto.password, 10);
+         await this.prisma.user.update({
+           where: { id: user.id },
+           data: { password: hash }
+         });
+         // Continue login
+      } else {
+         throw new UnauthorizedException('Email or password incorrect');
+      }
     }
 
     const payload = {
