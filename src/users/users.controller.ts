@@ -36,6 +36,12 @@ export class UsersController {
     return this.usersService.getAllUsers(pageNum, limitNum);
   }
 
+  @Get('it-staff')
+  @Roles('ADMIN', 'IT')
+  async getITStaff() {
+    return this.usersService.getITStaff();
+  }
+
   @Get('search')
   @Roles('ADMIN', 'IT')
   async searchUsers(@Query('q') query: string) {

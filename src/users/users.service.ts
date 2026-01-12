@@ -48,6 +48,28 @@ export class UsersService {
     };
   }
 
+  async getITStaff() {
+    return this.prisma.user.findMany({
+      where: {
+        role: {
+          in: ['IT', 'ADMIN']
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        department: true,
+        phoneNumber: true,
+        lineId: true
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    });
+  }
+
   async getUserById(id: number) {
     const user = await this.prisma.user.findUnique({
       where: { id },
