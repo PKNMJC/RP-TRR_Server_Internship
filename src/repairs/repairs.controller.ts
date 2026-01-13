@@ -74,10 +74,15 @@ export class RepairsController {
         );
         
         if (!user) {
-          logger.log(`User not found for LINE ID ${createRepairTicketDto.reporterLineId}. Auto-creating user...`);
+          logger.log(`User not found for LINE ID ${createRepairTicketDto.reporterLineId}. Auto-creating/Upserting user...`);
           try {
-            user = await this.usersService.createUserFromLineId(
-              createRepairTicketDto.reporterLineId
+            // Extract profile from body if sent from frontend
+            const { displayName, pictureUrl } = body;
+            
+            user = await this.usersService.getOrCreateUserFromLine(
+              createRepairTicketDto.reporterLineId,
+              displayName,
+              pictureUrl
             );
           } catch (createError) {
              logger.error('Failed to auto-create user, falling back to guest:', createError);

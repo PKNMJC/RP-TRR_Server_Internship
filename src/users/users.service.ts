@@ -26,6 +26,13 @@ export class UsersService {
           department: true,
           phoneNumber: true,
           lineId: true,
+          lineOALink: {
+            select: {
+              lineUserId: true,
+              displayName: true,
+              pictureUrl: true,
+            }
+          },
           createdAt: true,
           updatedAt: true,
           _count: {
@@ -44,8 +51,16 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
 
+    // Map users to flatten LINE info
+    const mappedUsers = users.map(user => ({
+      ...user,
+      lineUserId: user.lineOALink?.lineUserId || user.lineId,
+      displayName: user.lineOALink?.displayName,
+      pictureUrl: user.lineOALink?.pictureUrl,
+    }));
+
     return {
-      data: users,
+      data: mappedUsers,
       pagination: {
         total,
         page,
@@ -69,12 +84,24 @@ export class UsersService {
         role: true,
         department: true,
         phoneNumber: true,
-        lineId: true
+        lineId: true,
+        lineOALink: {
+          select: {
+            lineUserId: true,
+            displayName: true,
+            pictureUrl: true
+          }
+        }
       },
       orderBy: {
         name: 'asc'
       }
-    });
+    }).then(users => users.map(user => ({
+      ...user,
+      lineUserId: user.lineOALink?.lineUserId || user.lineId,
+      displayName: user.lineOALink?.displayName,
+      pictureUrl: user.lineOALink?.pictureUrl
+    })));
   }
 
   async getUserById(id: number) {
@@ -88,7 +115,15 @@ export class UsersService {
         role: true,
         department: true,
         phoneNumber: true,
+        phoneNumber: true,
         lineId: true,
+        lineOALink: {
+            select: {
+                lineUserId: true,
+                displayName: true,
+                pictureUrl: true,
+            }
+        },
         createdAt: true,
         updatedAt: true,
         _count: {
@@ -104,7 +139,12 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    return user;
+    return {
+        ...user,
+        lineUserId: user.lineOALink?.lineUserId || user.lineId,
+        displayName: user.lineOALink?.displayName,
+        pictureUrl: user.lineOALink?.pictureUrl,
+    };
   }
 
   async updateUser(id: number, data: any) {
@@ -141,10 +181,22 @@ export class UsersService {
         department: true,
         phoneNumber: true,
         lineId: true,
+        lineOALink: {
+            select: {
+                lineUserId: true,
+                displayName: true,
+                pictureUrl: true,
+            }
+        },
         createdAt: true,
         updatedAt: true,
       },
-    });
+    }).then(user => ({
+        ...user,
+        lineUserId: user.lineOALink?.lineUserId || user.lineId,
+        displayName: user.lineOALink?.displayName,
+        pictureUrl: user.lineOALink?.pictureUrl,
+    }));
   }
 
   async deleteUser(id: number) {
@@ -172,9 +224,17 @@ export class UsersService {
     return this.prisma.user.findMany({
       where: {
         OR: [
-          { name: { contains: query } },
-          { email: { contains: query } },
-          { department: { contains: query } },
+          { name: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
+          { department: { contains: query, mode: 'insensitive' } },
+          { 
+            lineOALink: { 
+              OR: [
+                { displayName: { contains: query, mode: 'insensitive' } },
+                { lineUserId: { contains: query, mode: 'insensitive' } }
+              ]
+            } 
+          }
         ],
       },
       select: {
@@ -185,11 +245,23 @@ export class UsersService {
         department: true,
         phoneNumber: true,
         lineId: true,
+        lineOALink: {
+            select: {
+                lineUserId: true,
+                displayName: true,
+                pictureUrl: true,
+            }
+        },
         createdAt: true,
         updatedAt: true,
       },
       take: 10,
-    });
+    }).then(users => users.map(user => ({
+        ...user,
+        lineUserId: user.lineOALink?.lineUserId || user.lineId,
+        displayName: user.lineOALink?.displayName,
+        pictureUrl: user.lineOALink?.pictureUrl
+    })));
   }
 
   async createUser(data: any) {
@@ -249,24 +321,50 @@ export class UsersService {
   }
 
   /**
-   * Create a temporary user account from LINE User ID (for LIFF repairs)
-   * Used when user submits repair via LIFF without being registered
+   * Get or create a User from LINE User ID (Upsert logic)
+   * Uses real display name from LINE and syncs profile
    */
-  async createUserFromLineId(lineUserId: string) {
-    const timestamp = Date.now();
-    const tempEmail = `line-${lineUserId}-${timestamp}@repair-system.local`;
-    const tempName = `LINE User ${lineUserId.substring(1, 6)}`;
+  async getOrCreateUserFromLine(lineUserId: string, displayName?: string, pictureUrl?: string) {
+    // 1. Check if LineOALink exists
+    const existingLink = await this.prisma.lineOALink.findFirst({
+      where: { lineUserId },
+      include: { user: true },
+    });
 
-    // Create user with LINE OA Link
+    if (existingLink) {
+      // Update profile info if changed
+      if (displayName && existingLink.displayName !== displayName || 
+          pictureUrl && existingLink.pictureUrl !== pictureUrl) {
+        await this.prisma.lineOALink.update({
+          where: { id: existingLink.id },
+          data: {
+            displayName: displayName || existingLink.displayName,
+            pictureUrl: pictureUrl || existingLink.pictureUrl,
+          },
+        });
+      }
+      return existingLink.user;
+    }
+
+    // 2. If new user
+    const timestamp = Date.now();
+    const systemEmail = `line-${lineUserId}@repair-system.local`; // System unique email
+    
+    // Determine name: Use LINE name if available, otherwise generic
+    const registerName = displayName || `User ${lineUserId.substring(0, 6)}`;
+
+    // Create user and link in one transaction
     const user = await this.prisma.user.create({
       data: {
-        email: tempEmail,
-        name: tempName,
-        password: await bcrypt.hash(`temp_${lineUserId}`, 10), // Temporary password
+        email: systemEmail,
+        name: registerName,
+        password: await bcrypt.hash(`temp_${lineUserId}`, 10),
         role: 'USER',
         lineOALink: {
           create: {
             lineUserId,
+            displayName,
+            pictureUrl,
             status: 'VERIFIED',
             verificationToken: '',
             verificationExpiry: null,
