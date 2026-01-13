@@ -1,15 +1,20 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LineOAService } from './line-oa.service';
 import { LineNotificationStatus } from '@prisma/client';
-import * as line from '@line/bot-sdk';
 
-// --- Types & Constants ---
+/* =======================
+   ENUMS & CONSTANTS
+======================= */
+
+// Use Prisma's LineNotificationStatus instead of local enum
+const NotificationStatus = LineNotificationStatus;
 
 const COLORS = {
   CRITICAL: '#D32F2F',
   URGENT: '#F57C00',
   NORMAL: '#2E7D32',
+
   SUCCESS: '#2ECC71',
   INFO: '#3498DB',
   WARNING: '#F39C12',
@@ -17,7 +22,10 @@ const COLORS = {
   PRIMARY: '#34495E',
 };
 
-// --- Interfaces ---
+/* =======================
+   INTERFACES
+======================= */
+
 export interface LineNotificationPayload {
   type: string;
   title: string;
@@ -32,9 +40,22 @@ export interface RepairTicketNotificationPayload {
   department: string;
   problemTitle: string;
   location: string;
-  urgency: string;
+  urgency: 'CRITICAL' | 'URGENT' | 'NORMAL';
   createdAt: string;
 }
+
+export interface RepairStatusUpdatePayload {
+  ticketCode: string;
+  status: string;
+  remark?: string;
+  technicianName?: string;
+  nextStep?: string;
+  updatedAt?: Date;
+}
+
+/* =======================
+   SERVICE
+======================= */
 
 @Injectable()
 export class LineOANotificationService {
@@ -45,109 +66,156 @@ export class LineOANotificationService {
     private readonly lineOAService: LineOAService,
   ) {}
 
-  /**
-   * Main Method: ส่งการแจ้งเตือนทั่วไป
-   */
+  /* =======================
+     GENERIC NOTIFICATION
+  ======================= */
+
   async sendNotification(userId: number, payload: LineNotificationPayload) {
     try {
       const lineLink = await this.getVerifiedLineLink(userId);
-      if (!lineLink) return { success: false, reason: 'User not linked to LINE' };
-
-      const message = payload.richMessage || this.createDefaultTextMessage(payload);
-      
-      await this.lineOAService.sendMessage(lineLink.lineUserId!, message);
-      await this.saveNotificationLog(lineLink.lineUserId!, payload, LineNotificationStatus.SENT);
-
-      return { success: true, message: 'Notification sent' };
-    } catch (error) {
-      this.logger.error(`Failed to send notification to user ${userId}: ${error.message}`);
-      await this.logFailure(userId, payload, error.message);
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
-   * ส่งการแจ้งเตือน Repair Ticket ใหม่ไปยังทีม IT (Broadcast/Bulk)
-   */
-  async notifyRepairTicketToITTeam(payload: RepairTicketNotificationPayload) {
-    try {
-      const itUsers = await this.prisma.user.findMany({
-        where: { role: 'IT', lineOALink: { status: 'VERIFIED' } },
-        include: { lineOALink: true },
-      });
-
-      const itLineUserIds = itUsers.map(u => u.lineOALink?.lineUserId).filter((id): id is string => id !== null && id !== undefined);
-
-      if (itLineUserIds.length === 0) {
-        this.logger.warn('No IT users with verified LINE links found');
-        return { success: false, reason: 'No verified IT users' };
+      if (!lineLink) {
+        return { success: false, reason: 'User not linked to LINE' };
       }
 
-      const flexMessage: any = {
-        type: 'flex',
-        altText: `📢 งานซ่อมใหม่: ${payload.ticketCode}`,
-        contents: this.createRepairTicketFlex(payload),
-      };
+      const message =
+        payload.richMessage || this.createDefaultTextMessage(payload);
 
-      // ส่งแบบ Multicast (ประหยัด API Rate Limit กว่าวนลูปส่งทีละคน)
-      await this.lineOAService.sendMulticast(itLineUserIds, flexMessage);
-
-      // บันทึก log สำหรับทุกคน
-      const logPromises = itLineUserIds.map(lineId => 
-        this.saveNotificationLog(lineId, {
-          type: 'REPAIR_TICKET_CREATED',
-          title: `งานใหม่: ${payload.ticketCode}`,
-          message: payload.problemTitle
-        }, LineNotificationStatus.SENT)
+      await this.lineOAService.sendMessage(
+        lineLink.lineUserId!,
+        message,
       );
-      await Promise.all(logPromises);
 
-      return { success: true, count: itLineUserIds.length };
-    } catch (error) {
-      this.logger.error('IT Team notification failed', error.stack);
-      return { success: false, error: error.message };
-    }
-  }
+      await this.saveNotificationLog(
+        lineLink.lineUserId!,
+        payload,
+        NotificationStatus.SENT,
+      );
 
-  /**
-   * แจ้งเตือนอัปเดตสถานะงานซ่อมให้ผู้แจ้ง
-   */
-  async notifyRepairTicketStatusUpdate(userId: number, ticketCode: string, status: string, remark: string) {
-    const lineLink = await this.getVerifiedLineLink(userId);
-    if (!lineLink) return { success: false };
-
-    const flexMessage: any = {
-      type: 'flex',
-      altText: `🔄 อัปเดตสถานะ ${ticketCode}`,
-      contents: this.createStatusUpdateFlex(ticketCode, status, remark),
-    };
-
-    try {
-      await this.lineOAService.sendMessage(lineLink.lineUserId!, flexMessage);
-      await this.saveNotificationLog(lineLink.lineUserId!, {
-        type: 'REPAIR_STATUS_UPDATE',
-        title: `อัปเดตงาน ${ticketCode}`,
-        message: remark
-      }, LineNotificationStatus.SENT);
       return { success: true };
     } catch (error) {
-      this.logger.error(`Status update notification failed: ${error.message}`);
+      this.logger.error(error.message);
+      await this.logFailure(userId, payload, error.message);
       return { success: false };
     }
   }
 
-  // --- Private Helpers (The "Clean" Part) ---
+  /* =======================
+     NOTIFY IT TEAM (NEW TICKET)
+  ======================= */
+
+  async notifyRepairTicketToITTeam(
+    payload: RepairTicketNotificationPayload,
+  ) {
+    try {
+      const itUsers = await this.prisma.user.findMany({
+        where: {
+          role: 'IT',
+          lineOALink: { status: 'VERIFIED' },
+        },
+        include: { lineOALink: true },
+      });
+
+      const lineUserIds = itUsers
+        .map(u => u.lineOALink?.lineUserId)
+        .filter((id): id is string => !!id);
+
+      if (lineUserIds.length === 0) {
+        return { success: false, reason: 'No IT users linked to LINE' };
+      }
+
+      const flexMessage = {
+        type: 'flex' as const,
+        altText: `📢 งานซ่อมใหม่ ${payload.ticketCode}`,
+        contents: this.createRepairTicketFlex(payload) as any,
+      };
+
+      await this.lineOAService.sendMulticast(
+        lineUserIds,
+        flexMessage,
+      );
+
+      await Promise.all(
+        lineUserIds.map(lineUserId =>
+          this.saveNotificationLog(
+            lineUserId,
+            {
+              type: 'REPAIR_TICKET_CREATED',
+              title: `งานใหม่ ${payload.ticketCode}`,
+              message: payload.problemTitle,
+            },
+            NotificationStatus.SENT,
+          ),
+        ),
+      );
+
+      return { success: true, count: lineUserIds.length };
+    } catch (error) {
+      this.logger.error(error.message);
+      return { success: false };
+    }
+  }
+
+  /* =======================
+     STATUS UPDATE → REPORTER
+  ======================= */
+
+  async notifyRepairTicketStatusUpdate(
+    userId: number,
+    payload: RepairStatusUpdatePayload,
+  ) {
+    const lineLink = await this.getVerifiedLineLink(userId);
+    if (!lineLink) return { success: false };
+
+    const flexMessage = {
+      type: 'flex' as const,
+      altText: `🔄 อัปเดตสถานะ ${payload.ticketCode}`,
+      contents: this.createStatusUpdateFlex(payload) as any,
+    };
+
+    try {
+      await this.lineOAService.sendMessage(
+        lineLink.lineUserId!,
+        flexMessage,
+      );
+
+      await this.saveNotificationLog(
+        lineLink.lineUserId!,
+        {
+          type: 'REPAIR_STATUS_UPDATE',
+          title: `อัปเดตงาน ${payload.ticketCode}`,
+          message: payload.remark || payload.status,
+        },
+        NotificationStatus.SENT,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(error.message);
+      return { success: false };
+    }
+  }
+
+  /* =======================
+     PRIVATE HELPERS
+  ======================= */
 
   private async getVerifiedLineLink(userId: number) {
-    const link = await this.prisma.lineOALink.findUnique({ where: { userId } });
+    const link = await this.prisma.lineOALink.findUnique({
+      where: { userId },
+    });
+
     if (!link || link.status !== 'VERIFIED' || !link.lineUserId) {
-      this.logger.warn(`User ${userId} has no verified LINE connection`);
       return null;
     }
     return link;
   }
 
-  private async saveNotificationLog(lineUserId: string, payload: Partial<LineNotificationPayload>, status: LineNotificationStatus, error?: string) {
+  private async saveNotificationLog(
+    lineUserId: string,
+    payload: Partial<LineNotificationPayload>,
+    status: LineNotificationStatus,
+    errorMessage?: string,
+  ) {
     return this.prisma.lineNotification.create({
       data: {
         lineUserId,
@@ -155,28 +223,47 @@ export class LineOANotificationService {
         title: payload.title ?? '',
         message: payload.message ?? '',
         status,
-        errorMessage: error,
+        errorMessage,
       },
     });
   }
 
-  private async logFailure(userId: number, payload: LineNotificationPayload, error: string) {
-    const link = await this.prisma.lineOALink.findUnique({ where: { userId } });
+  private async logFailure(
+    userId: number,
+    payload: LineNotificationPayload,
+    error: string,
+  ) {
+    const link = await this.prisma.lineOALink.findUnique({
+      where: { userId },
+    });
     if (link?.lineUserId) {
-      await this.saveNotificationLog(link.lineUserId, payload, LineNotificationStatus.FAILED, error);
+      await this.saveNotificationLog(
+        link.lineUserId,
+        payload,
+        NotificationStatus.FAILED,
+        error,
+      );
     }
   }
 
   private createDefaultTextMessage(payload: LineNotificationPayload) {
-    const text = `📬 ${payload.title}\n\n${payload.message}${payload.actionUrl ? `\n\n👉 รายละเอียด: ${payload.actionUrl}` : ''}`;
-    return { type: 'text', text };
+    return {
+      type: 'text',
+      text: `📬 ${payload.title}\n\n${payload.message}${
+        payload.actionUrl ? `\n\n👉 ${payload.actionUrl}` : ''
+      }`,
+    };
   }
 
-  // --- Flex Message Factories ---
+  /* =======================
+     FLEX FACTORIES
+  ======================= */
 
-  private createRepairTicketFlex(payload: RepairTicketNotificationPayload) {
-    const urgencyColor = this.getUrgencyConfig(payload.urgency).color;
-    const detailUrl = `${process.env.FRONTEND_URL}/admin/repairs?id=${payload.ticketCode}`;
+  private createRepairTicketFlex(
+    payload: RepairTicketNotificationPayload,
+  ) {
+    const urgency = this.getUrgencyConfig(payload.urgency);
+    const url = `${process.env.FRONTEND_URL}/admin/repairs?id=${payload.ticketCode}`;
 
     return {
       type: 'bubble',
@@ -184,10 +271,20 @@ export class LineOANotificationService {
       header: {
         type: 'box',
         layout: 'vertical',
-        backgroundColor: urgencyColor,
+        backgroundColor: urgency.color,
         contents: [
-          { type: 'text', text: '📝 แจ้งซ่อมใหม่', weight: 'bold', color: '#FFFFFF', size: 'lg' },
-          { type: 'text', text: `ความสำคัญ: ${this.getUrgencyConfig(payload.urgency).text}`, color: '#FFFFFF', size: 'xs', margin: 'sm' },
+          {
+            type: 'text',
+            text: '📝 แจ้งซ่อมใหม่',
+            color: '#FFFFFF',
+            weight: 'bold',
+          },
+          {
+            type: 'text',
+            text: urgency.text,
+            color: '#FFFFFF',
+            size: 'xs',
+          },
         ],
       },
       body: {
@@ -206,74 +303,114 @@ export class LineOANotificationService {
         type: 'box',
         layout: 'vertical',
         contents: [
-          { type: 'button', style: 'primary', color: urgencyColor, action: { type: 'uri', label: 'รับงานซ่อม', uri: detailUrl } },
+          {
+            type: 'button',
+            style: 'primary',
+            color: urgency.color,
+            action: {
+              type: 'uri',
+              label: 'รับงานซ่อม',
+              uri: url,
+            },
+          },
         ],
       },
     };
   }
 
-  private createStatusUpdateFlex(code: string, status: string, remark: string) {
-    const config = this.getStatusConfig(status);
-    const trackingUrl = `https://liff.line.me/${process.env.LINE_LIFF_ID}?id=${code}`;
+  private createStatusUpdateFlex(payload: RepairStatusUpdatePayload) {
+    const config = this.getStatusConfig(payload.status);
+    const url = `https://liff.line.me/${process.env.LINE_LIFF_ID}?id=${payload.ticketCode}`;
 
     return {
       type: 'bubble',
+      size: 'mega',
       header: {
         type: 'box',
         layout: 'vertical',
         backgroundColor: config.color,
-        contents: [{ type: 'text', text: '🔄 อัปเดตสถานะงาน', color: '#FFFFFF', weight: 'bold' }],
+        contents: [
+          {
+            type: 'text',
+            text: '🔄 อัปเดตสถานะงาน',
+            color: '#FFFFFF',
+            weight: 'bold',
+          },
+        ],
       },
       body: {
         type: 'box',
         layout: 'vertical',
-        spacing: 'sm',
+        spacing: 'md',
         contents: [
-          { type: 'text', text: code, size: 'xs', color: '#AAAAAA' },
+          { type: 'text', text: payload.ticketCode, size: 'xs', color: '#999999', align: 'center' },
           { type: 'text', text: config.text, weight: 'bold', size: 'xxl', color: config.color, align: 'center' },
-          { type: 'separator', margin: 'md' },
-          { type: 'text', text: 'หมายเหตุจากเจ้าหน้าที่:', size: 'xs', color: '#AAAAAA', margin: 'md' },
-          { type: 'text', text: remark || '-', wrap: true, size: 'sm' },
+          { type: 'separator' },
+
+          ...(payload.technicianName
+            ? [{ type: 'text', text: `ผู้ดำเนินการ: ${payload.technicianName}`, size: 'sm' }]
+            : []),
+
+          { type: 'text', text: 'หมายเหตุจากเจ้าหน้าที่', size: 'xs', color: '#AAAAAA' },
+          { type: 'text', text: payload.remark || '-', wrap: true },
+
+          ...(payload.nextStep
+            ? [{ type: 'text', text: `ขั้นตอนถัดไป: ${payload.nextStep}`, size: 'xs', color: '#555555' }]
+            : []),
+
+          ...(payload.updatedAt
+            ? [{ type: 'text', text: `อัปเดตล่าสุด: ${payload.updatedAt.toLocaleString('th-TH')}`, size: 'xs', align: 'end' }]
+            : []),
         ],
       },
       footer: {
         type: 'box',
         layout: 'vertical',
-        contents: [{ type: 'button', style: 'secondary', action: { type: 'uri', label: 'ตรวจสอบสถานะ', uri: trackingUrl } }],
+        contents: [
+          {
+            type: 'button',
+            style: 'secondary',
+            action: {
+              type: 'uri',
+              label: 'ตรวจสอบสถานะงาน',
+              uri: url,
+            },
+          },
+        ],
       },
     };
   }
 
-  private createFlexRow(label: string, value: string, isBold = false) {
+  private createFlexRow(label: string, value: string, bold = false) {
     return {
       type: 'box',
       layout: 'baseline',
-      spacing: 'sm',
       contents: [
-        { type: 'text', text: label, color: '#aaaaaa', size: 'sm', flex: 2 },
-        { type: 'text', text: value, wrap: true, color: '#666666', size: 'sm', flex: 5, weight: isBold ? 'bold' : 'regular' },
+        { type: 'text', text: label, size: 'sm', color: '#AAAAAA', flex: 2 },
+        { type: 'text', text: value, size: 'sm', wrap: true, flex: 5, weight: bold ? 'bold' : 'regular' },
       ],
     };
   }
 
-  // --- Mappings ---
+  /* =======================
+     MAPPINGS
+  ======================= */
 
-  private getUrgencyConfig(urgency: string) {
-    const maps = {
+  private getUrgencyConfig(level: string) {
+    return {
       CRITICAL: { color: COLORS.CRITICAL, text: 'ด่วนที่สุด 🚨' },
       URGENT: { color: COLORS.URGENT, text: 'ด่วน ⚠️' },
       NORMAL: { color: COLORS.NORMAL, text: 'ปกติ ✅' },
-    };
-    return maps[urgency] || maps.NORMAL;
+    }[level] || { color: COLORS.NORMAL, text: 'ปกติ' };
   }
 
   private getStatusConfig(status: string) {
-    const maps = {
+    return {
       PENDING: { color: COLORS.WARNING, text: 'รอดำเนินการ' },
       IN_PROGRESS: { color: COLORS.INFO, text: 'กำลังดำเนินการ' },
       COMPLETED: { color: COLORS.SUCCESS, text: 'เสร็จสิ้น' },
+      WAITING_USER: { color: COLORS.WARNING, text: 'รอข้อมูลจากผู้แจ้ง' },
       CANCELLED: { color: COLORS.SECONDARY, text: 'ยกเลิก' },
-    };
-    return maps[status] || { color: COLORS.PRIMARY, text: status };
+    }[status] || { color: COLORS.PRIMARY, text: status };
   }
 }
