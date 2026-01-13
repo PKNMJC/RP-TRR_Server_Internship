@@ -31,6 +31,24 @@ export class LineOAService {
   }
 
   /**
+   * ส่งข้อความไปยัง LINE Users หลายคน (Multicast)
+   */
+  async sendMulticast(lineUserIds: string[], message: line.Message) {
+    try {
+      if (lineUserIds.length === 0) {
+        this.logger.warn('No recipients for multicast');
+        return { success: false, reason: 'No recipients' };
+      }
+      await this.lineClient.multicast(lineUserIds, message);
+      this.logger.log(`Multicast sent to ${lineUserIds.length} users`);
+      return { success: true, count: lineUserIds.length };
+    } catch (error) {
+      this.logger.error(`Failed to send multicast:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * ดึงประวัติการแจ้งเตือน LINE ของผู้ใช้
    */
   async getNotifications(userId: number, limit: number = 20) {
