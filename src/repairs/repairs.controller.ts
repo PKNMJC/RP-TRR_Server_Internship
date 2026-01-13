@@ -319,9 +319,12 @@ export class RepairsController {
 
         await this.lineNotificationService.notifyRepairTicketStatusUpdate(
           updatedTicket.userId,
-          updatedTicket.ticketCode,
-          updateRepairTicketDto.status,
-          `${statusMessages[updateRepairTicketDto.status]}\n${updateRepairTicketDto.notes || ''}`,
+          {
+            ticketCode: updatedTicket.ticketCode,
+            status: updateRepairTicketDto.status,
+            remark: `${statusMessages[updateRepairTicketDto.status]}\n${updateRepairTicketDto.notes || ''}`,
+            updatedAt: new Date(),
+          },
         );
       } catch (error) {
         console.error('Failed to send status update notification:', error);
