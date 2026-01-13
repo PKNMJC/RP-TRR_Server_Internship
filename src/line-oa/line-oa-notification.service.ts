@@ -321,58 +321,234 @@ export class LineOANotificationService {
   private createStatusUpdateFlex(payload: RepairStatusUpdatePayload) {
     const config = this.getStatusConfig(payload.status);
     const url = `https://liff.line.me/${process.env.LINE_LIFF_ID}?id=${payload.ticketCode}`;
+    
+    // Format date/time professionally
+    const formattedDate = payload.updatedAt 
+      ? new Intl.DateTimeFormat('th-TH', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(payload.updatedAt)
+      : new Intl.DateTimeFormat('th-TH', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date());
 
     return {
       type: 'bubble',
       size: 'mega',
+      styles: {
+        header: { backgroundColor: config.color },
+        body: { backgroundColor: '#FAFAFA' },
+        footer: { backgroundColor: '#F5F5F5' },
+      },
       header: {
         type: 'box',
         layout: 'vertical',
-        backgroundColor: config.color,
+        paddingAll: '16px',
         contents: [
           {
-            type: 'text',
-            text: '🔄 อัปเดตสถานะงาน',
-            color: '#FFFFFF',
-            weight: 'bold',
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              {
+                type: 'box',
+                layout: 'vertical',
+                flex: 1,
+                contents: [
+                  {
+                    type: 'text',
+                    text: '🔔 อัปเดตสถานะงาน',
+                    color: '#FFFFFF',
+                    weight: 'bold',
+                    size: 'md',
+                  },
+                  {
+                    type: 'text',
+                    text: payload.ticketCode,
+                    color: '#FFFFFF',
+                    size: 'sm',
+                    margin: 'xs',
+                  },
+                ],
+              },
+            ],
           },
         ],
       },
       body: {
         type: 'box',
         layout: 'vertical',
-        spacing: 'md',
+        spacing: 'lg',
+        paddingAll: '20px',
         contents: [
-          { type: 'text', text: payload.ticketCode, size: 'xs', color: '#999999', align: 'center' },
-          { type: 'text', text: config.text, weight: 'bold', size: 'xxl', color: config.color, align: 'center' },
-          { type: 'separator' },
-
-          ...(payload.technicianName
-            ? [{ type: 'text', text: `ผู้ดำเนินการ: ${payload.technicianName}`, size: 'sm' }]
-            : []),
-
-          { type: 'text', text: 'หมายเหตุจากเจ้าหน้าที่', size: 'xs', color: '#AAAAAA' },
-          { type: 'text', text: payload.remark || '-', wrap: true },
-
-          ...(payload.nextStep
-            ? [{ type: 'text', text: `ขั้นตอนถัดไป: ${payload.nextStep}`, size: 'xs', color: '#555555' }]
-            : []),
-
-          ...(payload.updatedAt
-            ? [{ type: 'text', text: `อัปเดตล่าสุด: ${payload.updatedAt.toLocaleString('th-TH')}`, size: 'xs', align: 'end' }]
-            : []),
+          // Status Badge
+          {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: config.color + '15',
+            cornerRadius: '12px',
+            paddingAll: '16px',
+            contents: [
+              {
+                type: 'text',
+                text: config.text,
+                weight: 'bold',
+                size: 'xl',
+                color: config.color,
+                align: 'center',
+              },
+            ],
+          },
+          
+          // Technician Info Section
+          ...(payload.technicianName ? [{
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#FFFFFF',
+            cornerRadius: '8px',
+            paddingAll: '12px',
+            borderColor: '#E0E0E0',
+            borderWidth: '1px',
+            contents: [
+              {
+                type: 'box',
+                layout: 'horizontal',
+                contents: [
+                  {
+                    type: 'text',
+                    text: '👤',
+                    size: 'md',
+                    flex: 0,
+                  },
+                  {
+                    type: 'box',
+                    layout: 'vertical',
+                    flex: 1,
+                    paddingStart: '8px',
+                    contents: [
+                      {
+                        type: 'text',
+                        text: 'เจ้าหน้าที่รับผิดชอบ',
+                        size: 'xs',
+                        color: '#888888',
+                      },
+                      {
+                        type: 'text',
+                        text: payload.technicianName,
+                        size: 'md',
+                        weight: 'bold',
+                        color: '#333333',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }] : []),
+          
+          // Remark Section
+          {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#FFFFFF',
+            cornerRadius: '8px',
+            paddingAll: '12px',
+            borderColor: '#E0E0E0',
+            borderWidth: '1px',
+            contents: [
+              {
+                type: 'text',
+                text: '📝 หมายเหตุจากเจ้าหน้าที่',
+                size: 'xs',
+                color: '#888888',
+                margin: 'none',
+              },
+              {
+                type: 'text',
+                text: payload.remark || 'ไม่มีหมายเหตุเพิ่มเติม',
+                size: 'sm',
+                color: '#333333',
+                wrap: true,
+                margin: 'sm',
+              },
+            ],
+          },
+          
+          // Next Step (if any)
+          ...(payload.nextStep ? [{
+            type: 'box',
+            layout: 'horizontal',
+            backgroundColor: '#FFF3E0',
+            cornerRadius: '8px',
+            paddingAll: '12px',
+            contents: [
+              {
+                type: 'text',
+                text: '➡️',
+                size: 'sm',
+                flex: 0,
+              },
+              {
+                type: 'box',
+                layout: 'vertical',
+                flex: 1,
+                paddingStart: '8px',
+                contents: [
+                  {
+                    type: 'text',
+                    text: 'ขั้นตอนถัดไป',
+                    size: 'xs',
+                    color: '#E65100',
+                  },
+                  {
+                    type: 'text',
+                    text: payload.nextStep,
+                    size: 'sm',
+                    color: '#333333',
+                    wrap: true,
+                  },
+                ],
+              },
+            ],
+          }] : []),
+          
+          // Timestamp
+          {
+            type: 'box',
+            layout: 'horizontal',
+            justifyContent: 'flex-end',
+            margin: 'md',
+            contents: [
+              {
+                type: 'text',
+                text: `🕐 ${formattedDate}`,
+                size: 'xs',
+                color: '#999999',
+                align: 'end',
+              },
+            ],
+          },
         ],
       },
       footer: {
         type: 'box',
         layout: 'vertical',
+        paddingAll: '16px',
         contents: [
           {
             type: 'button',
-            style: 'secondary',
+            style: 'primary',
+            color: config.color,
+            height: 'md',
             action: {
               type: 'uri',
-              label: 'ตรวจสอบสถานะงาน',
+              label: '📋 ตรวจสอบสถานะงาน',
               uri: url,
             },
           },
