@@ -115,7 +115,6 @@ export class UsersService {
         role: true,
         department: true,
         phoneNumber: true,
-        phoneNumber: true,
         lineId: true,
         lineOALink: {
             select: {
