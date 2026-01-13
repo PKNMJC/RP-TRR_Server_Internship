@@ -275,7 +275,7 @@ export class LineOANotificationService {
         contents: [
           {
             type: 'text',
-            text: '📝 แจ้งซ่อมใหม่',
+            text: 'แจ้งซ่อมใหม่',
             color: '#FFFFFF',
             weight: 'bold',
           },
@@ -322,7 +322,7 @@ export class LineOANotificationService {
     const config = this.getStatusConfig(payload.status);
     const url = `https://liff.line.me/${process.env.LINE_LIFF_ID}?id=${payload.ticketCode}`;
     
-    // Format date/time professionally
+    // Format date/time professionally with Thai timezone
     const formattedDate = payload.updatedAt 
       ? new Intl.DateTimeFormat('th-TH', {
           year: 'numeric',
@@ -330,6 +330,7 @@ export class LineOANotificationService {
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
+          timeZone: 'Asia/Bangkok',
         }).format(payload.updatedAt)
       : new Intl.DateTimeFormat('th-TH', {
           year: 'numeric',
@@ -337,6 +338,7 @@ export class LineOANotificationService {
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
+          timeZone: 'Asia/Bangkok',
         }).format(new Date());
 
     return {
@@ -363,7 +365,7 @@ export class LineOANotificationService {
                 contents: [
                   {
                     type: 'text',
-                    text: '🔔 อัปเดตสถานะงาน',
+                    text: 'อัปเดตสถานะงาน',
                     color: '#FFFFFF',
                     weight: 'bold',
                     size: 'md',
@@ -422,7 +424,7 @@ export class LineOANotificationService {
                 contents: [
                   {
                     type: 'text',
-                    text: '👤',
+
                     size: 'md',
                     flex: 0,
                   },
@@ -464,7 +466,7 @@ export class LineOANotificationService {
             contents: [
               {
                 type: 'text',
-                text: '📝 หมายเหตุจากเจ้าหน้าที่',
+                text: 'หมายเหตุจากเจ้าหน้าที่',
                 size: 'xs',
                 color: '#888888',
                 margin: 'none',
@@ -490,7 +492,6 @@ export class LineOANotificationService {
             contents: [
               {
                 type: 'text',
-                text: '➡️',
                 size: 'sm',
                 flex: 0,
               },
@@ -527,7 +528,7 @@ export class LineOANotificationService {
             contents: [
               {
                 type: 'text',
-                text: `🕐 ${formattedDate}`,
+                text: formattedDate,
                 size: 'xs',
                 color: '#999999',
                 align: 'end',
@@ -536,24 +537,7 @@ export class LineOANotificationService {
           },
         ],
       },
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        paddingAll: '16px',
-        contents: [
-          {
-            type: 'button',
-            style: 'primary',
-            color: config.color,
-            height: 'md',
-            action: {
-              type: 'uri',
-              label: '📋 ตรวจสอบสถานะงาน',
-              uri: url,
-            },
-          },
-        ],
-      },
+      
     };
   }
 
@@ -574,9 +558,9 @@ export class LineOANotificationService {
 
   private getUrgencyConfig(level: string) {
     return {
-      CRITICAL: { color: COLORS.CRITICAL, text: 'ด่วนที่สุด 🚨' },
-      URGENT: { color: COLORS.URGENT, text: 'ด่วน ⚠️' },
-      NORMAL: { color: COLORS.NORMAL, text: 'ปกติ ✅' },
+      CRITICAL: { color: COLORS.CRITICAL, text: 'ด่วนที่สุด' },
+      URGENT: { color: COLORS.URGENT, text: 'ด่วน' },
+      NORMAL: { color: COLORS.NORMAL, text: 'ปกติ' },
     }[level] || { color: COLORS.NORMAL, text: 'ปกติ' };
   }
 
