@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRepairTicketDto } from './dto/create-repair-ticket.dto';
 import { UpdateRepairTicketDto } from './dto/update-repair-ticket.dto';
 import { UrgencyLevel, RepairTicketStatus } from '@prisma/client';
+import { LineOANotificationService } from '../line-oa/line-oa-notification.service';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -10,7 +11,10 @@ import * as fs from 'fs';
 export class RepairsService {
   private readonly logger = new Logger(RepairsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private lineNotificationService: LineOANotificationService,
+  ) {}
 
   /**
    * Generate unique ticket code: REP-YYYYMMDD-XXXX
@@ -277,26 +281,47 @@ export class RepairsService {
     updateRepairTicketDto: UpdateRepairTicketDto,
     updatedById: number,
   ) {
-    // Create log entry for status change
-    if (updateRepairTicketDto.status) {
+    // Create log entry for status change or assignee change
+    if (updateRepairTicketDto.status || updateRepairTicketDto.assignedTo) {
+      const currentTicket = await this.prisma.repairTicket.findUnique({
+        where: { id },
+        include: { assignee: true },
+      });
+
+      if (!currentTicket) {
+        throw new NotFoundException(`Repair ticket #${id} not found`);
+      }
+
+      let logComment = updateRepairTicketDto.notes;
+
+      // Handle Assignee Change (Transfer)
+      if (updateRepairTicketDto.assignedTo && updateRepairTicketDto.assignedTo !== currentTicket.assignedTo) {
+        const newAssignee = await this.prisma.user.findUnique({
+          where: { id: updateRepairTicketDto.assignedTo },
+        });
+        const transferMsg = `โอนงานจาก ${currentTicket.assignee?.name || 'ไม่มีผู้รับผิดชอบ'} ไปยัง ${newAssignee?.name || 'ยังไม่ระบุ'}`;
+        logComment = logComment ? `${transferMsg} | ${logComment}` : transferMsg;
+      }
+
       await this.prisma.repairTicketLog.create({
         data: {
           repairTicketId: id,
-          status: updateRepairTicketDto.status,
-          comment: updateRepairTicketDto.notes,
+          status: updateRepairTicketDto.status ?? currentTicket.status,
+          comment: logComment,
           updatedBy: updatedById,
         },
       });
+    }
 
-      // If status is COMPLETED, set completedAt timestamp
-      if (updateRepairTicketDto.status === RepairTicketStatus.COMPLETED) {
-        updateRepairTicketDto['completedAt'] = new Date();
-      }
+    // Prepare update data
+    const updateData: any = { ...updateRepairTicketDto };
+    if (updateRepairTicketDto.status === RepairTicketStatus.COMPLETED) {
+      updateData.completedAt = new Date();
     }
 
     const updatedTicket = await this.prisma.repairTicket.update({
       where: { id },
-      data: updateRepairTicketDto,
+      data: updateData,
       include: {
         user: {
           select: {
@@ -329,6 +354,27 @@ export class RepairsService {
         },
       },
     });
+
+    // Handle Technician Notifications on Assignment/Transfer
+    if (updateRepairTicketDto.assignedTo && updatedTicket.assignee) {
+      const isTransfer = updatedTicket.logs?.some(log => log.comment?.includes('โอนงาน'));
+      const isClaim = updatedById === updatedTicket.assignedTo && !isTransfer;
+      
+      try {
+        await this.lineNotificationService.notifyTechnicianTaskAssignment(
+          updatedTicket.assignedTo!,
+          {
+            ticketCode: updatedTicket.ticketCode,
+            problemTitle: updatedTicket.problemTitle,
+            reporterName: updatedTicket.reporterName || updatedTicket.user?.name || 'ไม่ระบุ',
+            urgency: updatedTicket.urgency as any,
+            action: isTransfer ? 'TRANSFERRED' : (isClaim ? 'CLAIMED' : 'ASSIGNED'),
+          }
+        );
+      } catch (error) {
+        this.logger.error('Failed to notify technician:', error);
+      }
+    }
 
     return updatedTicket;
   }
