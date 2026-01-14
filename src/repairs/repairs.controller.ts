@@ -63,41 +63,24 @@ export class RepairsController {
         problem: createRepairTicketDto.problemTitle,
       });
 
-      // ค้นหา user โดย LINE User ID
-      let userId: number;
-      
-      let user: any = null;
-
-      if (createRepairTicketDto.reporterLineId) {
-         user = await this.repairsService.findUserByLineId(
-          createRepairTicketDto.reporterLineId
+      if (!createRepairTicketDto.reporterLineId) {
+        throw new HttpException(
+          'LINE User ID is required. Guest access is disabled.',
+          HttpStatus.BAD_REQUEST,
         );
-        
-        if (!user) {
-          logger.log(`User not found for LINE ID ${createRepairTicketDto.reporterLineId}. Auto-creating/Upserting user...`);
-          try {
-            // Extract profile from body if sent from frontend
-            const { displayName, pictureUrl } = body;
-            
-            user = await this.usersService.getOrCreateUserFromLine(
-              createRepairTicketDto.reporterLineId,
-              displayName,
-              pictureUrl
-            );
-          } catch (createError) {
-             logger.error('Failed to auto-create user, falling back to guest:', createError);
-          }
-        }
       }
 
-      // If still no user (no Line ID provided OR auto-create failed), use Guest
-      if (!user) {
-        logger.log('Using Guest User for ticket creation');
-        user = await this.usersService.getOrCreateGuestUser();
-      }
+      // Upsert User: Create if new, Update profile if existing
+      // This ensures we always have the latest Display Name and Picture
+      const { displayName, pictureUrl } = body;
+      const user = await this.usersService.getOrCreateUserFromLine(
+        createRepairTicketDto.reporterLineId,
+        displayName,
+        pictureUrl,
+      );
 
-      userId = user!.id;
-      logger.log(`Creating ticket for user ${userId}`);
+      const userId = user.id;
+      logger.log(`Creating ticket for user ${userId} (${user.name})`);
 
       const ticket = await this.repairsService.create(userId, createRepairTicketDto, files);
       logger.log(`Ticket created: ${ticket!.ticketCode}`);
