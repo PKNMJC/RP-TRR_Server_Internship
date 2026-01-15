@@ -62,7 +62,6 @@ export class RepairsController {
       createRepairTicketDto.reporterLineId = body.reporterLineId;
       createRepairTicketDto.problemCategory = body.problemCategory;
       createRepairTicketDto.problemTitle = body.problemTitle;
-      createRepairTicketDto.problemTitle = body.problemTitle;
       
       // Append Image Categories to Description if present
       let description = body.problemDescription || '';
@@ -90,21 +89,16 @@ export class RepairsController {
       createRepairTicketDto.location = body.location;
       createRepairTicketDto.urgency = body.urgency;
 
-      logger.log('LIFF form received:', { 
-        lineId: createRepairTicketDto.reporterLineId,
-        name: createRepairTicketDto.reporterName,
-        problem: createRepairTicketDto.problemTitle,
-      });
+      logger.log(`Processing LIFF submission for LINE User: ${createRepairTicketDto.reporterLineId}`);
 
       if (!createRepairTicketDto.reporterLineId) {
         throw new HttpException(
-          'LINE User ID is required. Guest access is disabled.',
+          'จำเป็นต้องมี LINE User ID ในการแจ้งซ่อม',
           HttpStatus.BAD_REQUEST,
         );
       }
 
       // Upsert User: Create if new, Update profile if existing
-      // This ensures we always have the latest Display Name and Picture
       const { displayName, pictureUrl } = body;
       const user = await this.usersService.getOrCreateUserFromLine(
         createRepairTicketDto.reporterLineId,

@@ -105,31 +105,45 @@ export class RepairsService {
     if (files && files.length > 0) {
       this.logger.log(`Received ${files.length} files for ticket ${ticketCode}`);
       
-      // Force save for local development debugging
-      // if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-      //     this.logger.warn('File upload skipped on serverless environment (no persistent storage configured)');
-      //     // Future: Implement S3/Supabase storage here
-      // } else {
+      const isServerless = process.env.VERCEL || process.env.NODE_ENV === 'production';
+      
       try {
-          const uploadsDir = this.ensureUploadsDir();
-          this.logger.log(`Saving files to ${uploadsDir}`);
+          let attachments: any[] = [];
+
+          if (isServerless) {
+              this.logger.log('Serverless environment detected. Using Base64 storage strategy.');
+              attachments = files.map((file) => {
+                  const base64Data = file.buffer.toString('base64');
+                  const dataUri = `data:${file.mimetype};base64,${base64Data}`;
+                  
+                  return {
+                      repairTicketId: ticket.id,
+                      filename: file.originalname,
+                      fileUrl: dataUri, // Store the entire data-uri as the URL
+                      fileSize: file.size,
+                      mimeType: file.mimetype,
+                  };
+              });
+          } else {
+              this.logger.log('Local environment detected. Saving files to disk.');
+              const uploadsDir = this.ensureUploadsDir();
+              
+              attachments = files.map((file) => {
+                  const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+                  const filename = `${ticketCode}-${Date.now()}-${safeOriginalName}`;
+                  const filePath = path.join(uploadsDir, filename);
+                  
+                  fs.writeFileSync(filePath, file.buffer);
           
-          const attachments = files.map((file) => {
-            // Sanitize filename: remove non-alphanumeric chars except dots and dashes
-            const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-            const filename = `${ticketCode}-${Date.now()}-${safeOriginalName}`;
-            const filePath = path.join(uploadsDir, filename);
-            
-            fs.writeFileSync(filePath, file.buffer);
-    
-            return {
-              repairTicketId: ticket.id,
-              filename: file.originalname, // Keep original name for display
-              fileUrl: `/uploads/repairs/${filename}`,
-              fileSize: file.size,
-              mimeType: file.mimetype,
-            };
-          });
+                  return {
+                      repairTicketId: ticket.id,
+                      filename: file.originalname,
+                      fileUrl: `/uploads/repairs/${filename}`,
+                      fileSize: file.size,
+                      mimeType: file.mimetype,
+                  };
+              });
+          }
     
           await this.prisma.repairAttachment.createMany({
             data: attachments,
@@ -137,13 +151,9 @@ export class RepairsService {
           
           return this.findOne(ticket.id);
       } catch (error) {
-          this.logger.error(`File upload critical failure: ${error.message}`, error.stack);
-          // If we can't save files, we shouldn't fail the ticket creation entirely, as the user data is more important.
-          // Yet, the user expects images. Let's return the ticket but maybe add a log/note?
-          // Actually, let's THROW a friendly HTTP exception instead of generic 500 to show the REAL reason.
-          throw new HttpException(`บันทึกรูปภาพไม่สำเร็จ: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+          this.logger.error(`File storage failure: ${error.message}`, error.stack);
+          throw new HttpException(`ไม่สามารถบันทึกรูปภาพได้: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
       }
-      
     }
 
     return ticket;
