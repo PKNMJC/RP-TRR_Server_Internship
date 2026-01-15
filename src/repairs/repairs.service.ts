@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRepairTicketDto } from './dto/create-repair-ticket.dto';
 import { UpdateRepairTicketDto } from './dto/update-repair-ticket.dto';
@@ -137,8 +137,11 @@ export class RepairsService {
           
           return this.findOne(ticket.id);
       } catch (error) {
-          this.logger.error(`Failed to save files: ${error.message}`, error.stack);
-          throw new Error(`File upload failed: ${error.message}`);
+          this.logger.error(`File upload critical failure: ${error.message}`, error.stack);
+          // If we can't save files, we shouldn't fail the ticket creation entirely, as the user data is more important.
+          // Yet, the user expects images. Let's return the ticket but maybe add a log/note?
+          // Actually, let's THROW a friendly HTTP exception instead of generic 500 to show the REAL reason.
+          throw new HttpException(`บันทึกรูปภาพไม่สำเร็จ: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
       }
       
     }
