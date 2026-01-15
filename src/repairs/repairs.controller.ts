@@ -39,12 +39,14 @@ export class RepairsController {
   @Post('liff/create')
   @UseInterceptors(FilesInterceptor('files', 3))
   async createFromLiff(
+    @Request() req: any,
     @Body() body: any,
     @UploadedFiles() files?: any[],
   ) {
     const logger = new Logger('RepairsController.createFromLiff');
     
     // DEBUG: Log received data
+    logger.log(`Content-Type: ${req.headers['content-type']}`);
     logger.log(`Received Request Body Keys: ${Object.keys(body).join(', ')}`);
     logger.log(`Received Files Count: ${files ? files.length : 0}`);
     if (files && files.length > 0) {

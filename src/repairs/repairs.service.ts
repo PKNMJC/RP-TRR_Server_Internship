@@ -138,8 +138,7 @@ export class RepairsService {
           return this.findOne(ticket.id);
       } catch (error) {
           this.logger.error(`Failed to save files: ${error.message}`, error.stack);
-          // Don't fail the whole ticket creation if file upload fails, just log it
-          // Or re-throw if critical
+          throw new Error(`File upload failed: ${error.message}`);
       }
       
     }
