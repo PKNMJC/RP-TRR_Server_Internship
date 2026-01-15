@@ -110,18 +110,21 @@ export class RepairsService {
       //     this.logger.warn('File upload skipped on serverless environment (no persistent storage configured)');
       //     // Future: Implement S3/Supabase storage here
       // } else {
+      try {
           const uploadsDir = this.ensureUploadsDir();
           this.logger.log(`Saving files to ${uploadsDir}`);
           
           const attachments = files.map((file) => {
-            const filename = `${ticketCode}-${Date.now()}-${file.originalname}`;
+            // Sanitize filename: remove non-alphanumeric chars except dots and dashes
+            const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const filename = `${ticketCode}-${Date.now()}-${safeOriginalName}`;
             const filePath = path.join(uploadsDir, filename);
             
             fs.writeFileSync(filePath, file.buffer);
     
             return {
               repairTicketId: ticket.id,
-              filename: file.originalname,
+              filename: file.originalname, // Keep original name for display
               fileUrl: `/uploads/repairs/${filename}`,
               fileSize: file.size,
               mimeType: file.mimetype,
@@ -133,6 +136,11 @@ export class RepairsService {
           });
           
           return this.findOne(ticket.id);
+      } catch (error) {
+          this.logger.error(`Failed to save files: ${error.message}`, error.stack);
+          // Don't fail the whole ticket creation if file upload fails, just log it
+          // Or re-throw if critical
+      }
       
     }
 
