@@ -418,6 +418,7 @@ export class RepairsService {
             reporterName: updatedTicket.reporterName || updatedTicket.user?.name || 'ไม่ระบุ',
             urgency: updatedTicket.urgency as any,
             action: isTransfer ? 'TRANSFERRED' : (isClaim ? 'CLAIMED' : 'ASSIGNED'),
+            imageUrl: updatedTicket.attachments?.[0]?.fileUrl,
           }
         );
       } catch (error) {

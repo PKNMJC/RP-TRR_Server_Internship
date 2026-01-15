@@ -37,18 +37,22 @@ export interface RepairTicketNotificationPayload {
   reporterName: string;
   department: string;
   problemTitle: string;
+  problemDescription?: string;
   location: string;
   urgency: 'CRITICAL' | 'URGENT' | 'NORMAL';
   createdAt: string;
+  imageUrl?: string;
 }
 
 export interface RepairStatusUpdatePayload {
   ticketCode: string;
+  problemTitle?: string;
   status: string;
   remark?: string;
   technicianName?: string;
   nextStep?: string;
   updatedAt?: Date;
+  imageUrl?: string;
 }
 
 /* =======================
@@ -140,6 +144,7 @@ export class LineOANotificationService {
       reporterName: string;
       urgency: 'CRITICAL' | 'URGENT' | 'NORMAL';
       action: 'ASSIGNED' | 'TRANSFERRED' | 'CLAIMED';
+      imageUrl?: string;
     }
   ) {
     try {
@@ -248,24 +253,48 @@ export class LineOANotificationService {
   private createRepairTicketFlex(payload: RepairTicketNotificationPayload) {
     const urgency = this.getUrgencyConfig(payload.urgency);
     const url = `${process.env.FRONTEND_URL}/admin/repairs?id=${payload.ticketCode}`;
+    const imageUrl = this.formatImageUrl(payload.imageUrl);
 
     return {
-      type: 'bubble', size: 'mega',
+      type: 'bubble',
+      size: 'mega',
+      ...(imageUrl ? {
+        hero: {
+          type: 'image',
+          url: imageUrl,
+          size: 'full',
+          aspectRatio: '20:13',
+          aspectMode: 'cover',
+        }
+      } : {}),
       header: {
         type: 'box', layout: 'vertical', backgroundColor: urgency.color,
         contents: [
-          { type: 'text', text: 'แจ้งซ่อมใหม่', color: '#FFFFFF', weight: 'bold' },
-          { type: 'text', text: urgency.text, color: '#FFFFFF', size: 'xs' },
+          { type: 'text', text: '📢 แจ้งซ่อมใหม่', color: '#FFFFFF', weight: 'bold', size: 'md' },
+          { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xs', opacity: '0.8' },
         ],
       },
       body: {
         type: 'box', layout: 'vertical', spacing: 'md',
         contents: [
-          { type: 'text', text: payload.ticketCode, weight: 'bold', size: 'xl', align: 'center' },
-          { type: 'separator' },
+          { type: 'text', text: payload.problemTitle, weight: 'bold', size: 'lg', wrap: true },
+          { 
+            type: 'box', layout: 'vertical', backgroundColor: urgency.color + '15',
+            paddingAll: '4px', cornerRadius: 'sm', margin: 'sm',
+            contents: [{ type: 'text', text: urgency.text, color: urgency.color, size: 'xs', align: 'center', weight: 'bold' }]
+          },
+          { type: 'separator', margin: 'md' },
           this.createFlexRow('ผู้แจ้ง', payload.reporterName),
+          this.createFlexRow('แผนก', payload.department),
           this.createFlexRow('สถานที่', payload.location),
-          this.createFlexRow('ปัญหา', payload.problemTitle, true),
+          this.createFlexRow('สถานะ', 'รอดำเนินการ', true),
+          { type: 'separator', margin: 'md' },
+          {
+            type: 'box', layout: 'vertical', margin: 'md',
+            contents: [
+              { type: 'text', text: 'ยังไม่มีผู้รับผิดชอบ', size: 'sm', color: '#FF0000', align: 'center', weight: 'bold', decoration: 'none' }
+            ]
+          }
         ],
       },
       footer: {
@@ -273,7 +302,7 @@ export class LineOANotificationService {
         contents: [
           {
             type: 'button', style: 'primary', color: urgency.color,
-            action: { type: 'uri', label: 'รับงานซ่อม', uri: url },
+            action: { type: 'uri', label: 'รับงานซ่อม (Claim)', uri: url },
           },
         ],
       },
@@ -283,16 +312,30 @@ export class LineOANotificationService {
   private createTechnicianAssignmentFlex(payload: any, actionText: string) {
     const urgency = this.getUrgencyConfig(payload.urgency);
     const url = `${process.env.FRONTEND_URL}/it/repairs?id=${payload.ticketCode}`;
+    const imageUrl = this.formatImageUrl(payload.imageUrl);
+
     return {
       type: 'bubble', size: 'mega',
+      ...(imageUrl ? {
+        hero: {
+          type: 'image',
+          url: imageUrl,
+          size: 'full',
+          aspectRatio: '20:13',
+          aspectMode: 'cover',
+        }
+      } : {}),
       header: {
         type: 'box', layout: 'vertical', backgroundColor: '#111827',
-        contents: [{ type: 'text', text: actionText, color: '#FFFFFF', weight: 'bold', size: 'md' }],
+        contents: [
+          { type: 'text', text: `📌 ${actionText}`, color: '#FFFFFF', weight: 'bold', size: 'md' },
+          { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xs', opacity: '0.8' },
+        ],
       },
       body: {
         type: 'box', layout: 'vertical', spacing: 'md',
         contents: [
-          { type: 'text', text: payload.ticketCode, weight: 'bold', size: 'xl', align: 'center' },
+          { type: 'text', text: payload.problemTitle, weight: 'bold', size: 'lg', wrap: true },
           { 
             type: 'box', layout: 'vertical', backgroundColor: urgency.color + '15',
             paddingAll: '4px', cornerRadius: 'sm',
@@ -300,7 +343,7 @@ export class LineOANotificationService {
           },
           { type: 'separator' },
           this.createFlexRow('ผู้แจ้ง', payload.reporterName),
-          this.createFlexRow('ปัญหา', payload.problemTitle, true),
+          this.createFlexRow('สถานะ', 'รอดำเนินการ (จ่ายงานแล้ว)', true),
         ],
       },
       footer: {
@@ -369,6 +412,15 @@ export class LineOANotificationService {
         { type: 'text', text: value, size: 'sm', wrap: true, flex: 5, weight: bold ? 'bold' : 'regular' },
       ],
     };
+  }
+
+  private formatImageUrl(url?: string): string | undefined {
+    if (!url) return undefined;
+    if (url.startsWith('data:')) return undefined; // LINE doesn't support data URIs
+    if (url.startsWith('http')) return url;
+    
+    const baseUrl = process.env.BACKEND_URL || '';
+    return `${baseUrl}${url}`;
   }
 
   private getUrgencyConfig(level: string) {
