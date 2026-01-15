@@ -102,13 +102,17 @@ export class RepairsService {
     });
 
     // Handle file uploads
-    // Handle file uploads
     if (files && files.length > 0) {
-      if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-          this.logger.warn('File upload skipped on serverless environment (no persistent storage configured)');
-          // Future: Implement S3/Supabase storage here
-      } else {
+      this.logger.log(`Received ${files.length} files for ticket ${ticketCode}`);
+      
+      // Force save for local development debugging
+      // if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+      //     this.logger.warn('File upload skipped on serverless environment (no persistent storage configured)');
+      //     // Future: Implement S3/Supabase storage here
+      // } else {
           const uploadsDir = this.ensureUploadsDir();
+          this.logger.log(`Saving files to ${uploadsDir}`);
+          
           const attachments = files.map((file) => {
             const filename = `${ticketCode}-${Date.now()}-${file.originalname}`;
             const filePath = path.join(uploadsDir, filename);
@@ -129,7 +133,7 @@ export class RepairsService {
           });
           
           return this.findOne(ticket.id);
-      }
+      
     }
 
     return ticket;
