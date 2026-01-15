@@ -44,6 +44,13 @@ export class RepairsController {
   ) {
     const logger = new Logger('RepairsController.createFromLiff');
     
+    // DEBUG: Log received data
+    logger.log(`Received Request Body Keys: ${Object.keys(body).join(', ')}`);
+    logger.log(`Received Files Count: ${files ? files.length : 0}`);
+    if (files && files.length > 0) {
+        files.forEach((f, i) => logger.log(`File [${i}]: ${f.originalname} (${f.size} bytes)`));
+    }
+
     try {
       // Extract data from FormData
       const createRepairTicketDto = new CreateRepairTicketDto();
