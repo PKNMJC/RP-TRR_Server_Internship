@@ -53,7 +53,31 @@ export class RepairsController {
       createRepairTicketDto.reporterLineId = body.reporterLineId;
       createRepairTicketDto.problemCategory = body.problemCategory;
       createRepairTicketDto.problemTitle = body.problemTitle;
-      createRepairTicketDto.problemDescription = body.problemDescription;
+      createRepairTicketDto.problemTitle = body.problemTitle;
+      
+      // Append Image Categories to Description if present
+      let description = body.problemDescription || '';
+      if (body.imageCategories) {
+        try {
+          const categories = JSON.parse(body.imageCategories);
+          if (Array.isArray(categories) && categories.length > 0) {
+            const categoryLabels = {
+              monitor: 'หน้าจอ',
+              pc: 'คอมพิวเตอร์',
+              printer: 'เครื่องพิมพ์',
+              network: 'อินเทอร์เน็ต',
+              mouse_keyboard: 'เมาส์/คีย์บอร์ด',
+              software: 'โปรแกรม'
+            };
+            const labels = categories.map(c => categoryLabels[c] || c).join(', ');
+            description += `\n\n[สัญลักษณ์ที่ระบุ: ${labels}]`;
+          }
+        } catch (e) {
+          // Ignore parsing error
+        }
+      }
+      createRepairTicketDto.problemDescription = description;
+
       createRepairTicketDto.location = body.location;
       createRepairTicketDto.urgency = body.urgency;
 
