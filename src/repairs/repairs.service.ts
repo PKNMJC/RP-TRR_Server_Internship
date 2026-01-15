@@ -73,6 +73,11 @@ export class RepairsService {
             name: true,
             email: true,
             department: true,
+            lineOALink: {
+              select: {
+                pictureUrl: true,
+              },
+            },
           },
         },
         assignee: {
@@ -163,6 +168,11 @@ export class RepairsService {
             name: true,
             email: true,
             department: true,
+            lineOALink: {
+              select: {
+                pictureUrl: true,
+              },
+            },
           },
         },
         assignee: {
@@ -206,6 +216,11 @@ export class RepairsService {
             name: true,
             email: true,
             department: true,
+            lineOALink: {
+              select: {
+                pictureUrl: true,
+              },
+            },
           },
         },
         assignee: {
@@ -246,6 +261,11 @@ export class RepairsService {
             name: true,
             email: true,
             department: true,
+            lineOALink: {
+              select: {
+                pictureUrl: true,
+              },
+            },
           },
         },
         assignee: {
@@ -329,6 +349,11 @@ export class RepairsService {
             name: true,
             email: true,
             department: true,
+            lineOALink: {
+              select: {
+                pictureUrl: true,
+              },
+            },
           },
         },
         assignee: {
