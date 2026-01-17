@@ -123,7 +123,6 @@ export class RepairsController {
             location: ticket.location,
             urgency: ticket.urgency,
             createdAt: new Date().toLocaleString('th-TH'),
-            imageUrl: ticket.attachments?.[0]?.fileUrl,
           });
           logger.log('LINE notification sent');
         } catch (error) {
@@ -247,7 +246,6 @@ export class RepairsController {
           location: ticket.location,
           urgency: ticket.urgency,
           createdAt: new Date().toLocaleString('th-TH'),
-          imageUrl: ticket.attachments?.[0]?.fileUrl,
         });
       } catch (error) {
         console.error('Failed to send LINE notification:', error);
@@ -339,7 +337,6 @@ export class RepairsController {
             remark: updateRepairTicketDto.notes || '',
             updatedAt: new Date(),
             technicianName: updatedTicket.assignee?.name,
-            imageUrl: updatedTicket.attachments?.[0]?.fileUrl,
           },
         );
       } catch (error) {
