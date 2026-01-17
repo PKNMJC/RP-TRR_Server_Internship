@@ -257,40 +257,91 @@ export class LineOANotificationService {
       type: 'bubble',
       size: 'mega',
       header: {
-        type: 'box', layout: 'vertical', backgroundColor: urgency.color,
+        type: 'box',
+        layout: 'horizontal',
+        backgroundColor: urgency.color,
+        paddingAll: '15px',
         contents: [
-          { type: 'text', text: '📢 แจ้งซ่อมใหม่', color: '#FFFFFF', weight: 'bold', size: 'md' },
-          { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xs', opacity: '0.8' },
+          {
+            type: 'box',
+            layout: 'vertical',
+            flex: 1,
+            contents: [
+              { type: 'text', text: '📢 รายงานแจ้งซ่อมใหม่', color: '#FFFFFF', weight: 'bold', size: 'md' },
+              { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xs', margin: 'xs' },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#FFFFFF33',
+            cornerRadius: 'md',
+            paddingAll: '4px',
+            paddingStart: '8px',
+            paddingEnd: '8px',
+            justifyContent: 'center',
+            contents: [{ type: 'text', text: urgency.text, color: '#FFFFFF', size: 'xxs', weight: 'bold' }]
+          }
         ],
       },
       body: {
-        type: 'box', layout: 'vertical', spacing: 'md',
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '16px',
+        spacing: 'md',
         contents: [
-          { type: 'text', text: payload.problemTitle, weight: 'bold', size: 'lg', wrap: true },
-          { 
-            type: 'box', layout: 'vertical', backgroundColor: urgency.color + '15',
-            paddingAll: '4px', cornerRadius: 'sm', margin: 'sm',
-            contents: [{ type: 'text', text: urgency.text, color: urgency.color, size: 'xs', align: 'center', weight: 'bold' }]
-          },
-          { type: 'separator', margin: 'md' },
-          this.createFlexRow('ผู้แจ้ง', payload.reporterName),
-          this.createFlexRow('แผนก', payload.department),
-          this.createFlexRow('สถานที่', payload.location),
-          this.createFlexRow('สถานะ', 'รอดำเนินการ', true),
-          { type: 'separator', margin: 'md' },
           {
-            type: 'box', layout: 'vertical', margin: 'md',
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'xs',
             contents: [
-              { type: 'text', text: 'ยังไม่มีผู้รับผิดชอบ', size: 'sm', color: '#FF0000', align: 'center', weight: 'bold', decoration: 'none' }
+              { type: 'text', text: '🔧 ปัญหาที่แจ้ง', size: 'xs', color: '#94A3B8' },
+              { type: 'text', text: payload.problemTitle, size: 'md', weight: 'bold', color: '#1F2937', wrap: true },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#F8FAFC',
+            paddingAll: '12px',
+            cornerRadius: 'md',
+            spacing: 'xs',
+            contents: [
+              {
+                type: 'box', layout: 'horizontal', spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '👤 ผู้แจ้ง:', size: 'xs', color: '#64748B', flex: 2 },
+                  { type: 'text', text: payload.reporterName, size: 'xs', color: '#334155', weight: 'bold', flex: 5 }
+                ]
+              },
+              {
+                type: 'box', layout: 'horizontal', spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '🏢 แผนก:', size: 'xs', color: '#64748B', flex: 2 },
+                  { type: 'text', text: payload.department, size: 'xs', color: '#334155', flex: 5 }
+                ]
+              },
+              {
+                type: 'box', layout: 'horizontal', spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '📍 สถานที่:', size: 'xs', color: '#64748B', flex: 2 },
+                  { type: 'text', text: payload.location, size: 'xs', color: '#334155', flex: 5 }
+                ]
+              }
             ]
           }
         ],
       },
       footer: {
-        type: 'box', layout: 'vertical',
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '12px',
         contents: [
           {
-            type: 'button', style: 'primary', color: urgency.color,
+            type: 'button',
+            style: 'primary',
+            color: urgency.color,
+            height: 'sm',
             action: { type: 'uri', label: 'รับงานซ่อม (Claim)', uri: url },
           },
         ],
@@ -303,32 +354,63 @@ export class LineOANotificationService {
     const url = `${process.env.FRONTEND_URL}/it/repairs?id=${payload.ticketCode}`;
 
     return {
-      type: 'bubble', size: 'mega',
+      type: 'bubble',
+      size: 'mega',
       header: {
-        type: 'box', layout: 'vertical', backgroundColor: '#111827',
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#111827',
+        paddingAll: '15px',
         contents: [
           { type: 'text', text: `📌 ${actionText}`, color: '#FFFFFF', weight: 'bold', size: 'md' },
-          { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xs', opacity: '0.8' },
+          { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xs', margin: 'xs', opacity: '0.7' },
         ],
       },
       body: {
-        type: 'box', layout: 'vertical', spacing: 'md',
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '16px',
+        spacing: 'md',
         contents: [
-          { type: 'text', text: payload.problemTitle, weight: 'bold', size: 'lg', wrap: true },
-          { 
-            type: 'box', layout: 'vertical', backgroundColor: urgency.color + '15',
-            paddingAll: '4px', cornerRadius: 'sm',
-            contents: [{ type: 'text', text: urgency.text, color: urgency.color, size: 'xs', align: 'center', weight: 'bold' }]
+          {
+            type: 'box',
+            layout: 'horizontal',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            contents: [
+              { type: 'text', text: '🔧 รายละเอียดงาน', size: 'xs', color: '#94A3B8' },
+              {
+                type: 'box', layout: 'vertical', backgroundColor: urgency.color + '20',
+                paddingAll: '2px', paddingStart: '8px', paddingEnd: '8px', cornerRadius: 'md',
+                contents: [{ type: 'text', text: urgency.text, color: urgency.color, size: '10px', weight: 'bold' }]
+              }
+            ]
           },
-          { type: 'separator' },
-          this.createFlexRow('ผู้แจ้ง', payload.reporterName),
-          this.createFlexRow('สถานะ', 'รอดำเนินการ (จ่ายงานแล้ว)', true),
+          { type: 'text', text: payload.problemTitle, weight: 'bold', size: 'md', color: '#1F2937', wrap: true },
+          { type: 'separator', margin: 'sm' },
+          {
+            type: 'box', layout: 'vertical', spacing: 'xs',
+            contents: [
+              {
+                type: 'box', layout: 'horizontal',
+                contents: [
+                  { type: 'text', text: '👤 ผู้แจ้ง:', size: 'xs', color: '#64748B', flex: 2 },
+                  { type: 'text', text: payload.reporterName, size: 'xs', color: '#334155', flex: 5 }
+                ]
+              },
+            ]
+          }
         ],
       },
       footer: {
-        type: 'box', layout: 'vertical',
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '12px',
         contents: [{
-          type: 'button', style: 'primary', color: '#111827',
+          type: 'button',
+          style: 'primary',
+          color: '#111827',
+          height: 'sm',
           action: { type: 'uri', label: 'ดูรายละเอียดงาน', uri: url },
         }],
       },
@@ -338,11 +420,10 @@ export class LineOANotificationService {
   private createStatusUpdateFlex(payload: RepairStatusUpdatePayload) {
     const config = this.getStatusConfig(payload.status);
     
-    // สร้าง URL ที่ redirect ไปหน้า history detail ของ ticket นั้น
     const liffId = process.env.LINE_LIFF_ID || '';
-    // ใช้ path ที่ตรงกับ frontend route: /repairs/liff?action=history&id=xxx
-    const historyPath = `/repairs/liff?action=history&id=${payload.ticketCode}`;
-    const url = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(historyPath)}`;
+    // Simplified URL format: pass parameters directly to LIFF permanent link
+    // This is often more reliable than liff.state for simple parameter passing
+    const url = `https://liff.line.me/${liffId}?action=history&id=${payload.ticketCode}`;
     
     this.logger.log(`[StatusUpdate] Generated URL: ${url}`);
     
