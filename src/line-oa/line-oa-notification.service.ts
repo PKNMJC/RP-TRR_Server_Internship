@@ -47,6 +47,7 @@ export interface RepairTicketNotificationPayload {
 export interface RepairStatusUpdatePayload {
   ticketCode: string;
   problemTitle?: string;
+  problemDescription?: string;
   status: string;
   remark?: string;
   technicianName?: string;
@@ -359,6 +360,7 @@ export class LineOANotificationService {
   private createStatusUpdateFlex(payload: RepairStatusUpdatePayload) {
     const config = this.getStatusConfig(payload.status);
     const url = `https://liff.line.me/${process.env.LINE_LIFF_ID}?id=${payload.ticketCode}`;
+    const imageUrl = this.formatImageUrl(payload.imageUrl);
     const formattedDate = new Intl.DateTimeFormat('th-TH', {
       year: 'numeric', month: 'long', day: 'numeric', 
       hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
@@ -366,38 +368,158 @@ export class LineOANotificationService {
 
     return {
       type: 'bubble', size: 'mega',
-      styles: { header: { backgroundColor: config.color }, body: { backgroundColor: '#FAFAFA' }, footer: { backgroundColor: '#F5F5F5' } },
+      styles: { 
+        header: { backgroundColor: config.color }, 
+        body: { backgroundColor: '#FAFAFA' }, 
+        footer: { backgroundColor: '#FFFFFF' } 
+      },
+      // Hero Image - แสดงรูปปัญหาที่ผู้แจ้งแนบมา
+      ...(imageUrl ? {
+        hero: {
+          type: 'image',
+          url: imageUrl,
+          size: 'full',
+          aspectRatio: '20:13',
+          aspectMode: 'cover',
+        }
+      } : {}),
       header: {
         type: 'box', layout: 'vertical', paddingAll: '16px',
         contents: [
-          { type: 'text', text: 'อัปเดตสถานะงาน', color: '#FFFFFF', weight: 'bold', size: 'md' },
-          { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'sm', margin: 'xs' },
+          { 
+            type: 'box', layout: 'horizontal', justifyContent: 'space-between', alignItems: 'center',
+            contents: [
+              { type: 'text', text: '🔔 อัปเดตสถานะ', color: '#FFFFFF', weight: 'bold', size: 'lg' },
+              { 
+                type: 'box', layout: 'vertical', backgroundColor: '#FFFFFF20', cornerRadius: 'md', paddingAll: '6px', paddingStart: '10px', paddingEnd: '10px',
+                contents: [{ type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xxs', weight: 'bold' }]
+              }
+            ]
+          },
         ],
       },
       body: {
-        type: 'box', layout: 'vertical', spacing: 'lg', paddingAll: '20px',
+        type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px',
         contents: [
+          // Status Badge - แสดงสถานะเด่นชัด
           {
-            type: 'box', layout: 'vertical', backgroundColor: config.color + '15', cornerRadius: '12px', paddingAll: '16px',
-            contents: [{ type: 'text', text: config.text, weight: 'bold', size: 'xl', color: config.color, align: 'center' }],
-          },
-          ...(payload.technicianName ? [{
-            type: 'box', layout: 'vertical', backgroundColor: '#FFFFFF', cornerRadius: '8px', paddingAll: '12px', borderColor: '#E0E0E0', borderWidth: '1px',
+            type: 'box', layout: 'vertical', backgroundColor: config.color + '20', cornerRadius: 'xl', paddingAll: '16px', margin: 'none',
             contents: [
-                { type: 'text', text: 'เจ้าหน้าที่รับผิดชอบ', size: 'xs', color: '#888888' },
-                { type: 'text', text: payload.technicianName, size: 'md', weight: 'bold', color: '#333333' }
+              { type: 'text', text: config.emoji || '📋', size: 'xxl', align: 'center' },
+              { type: 'text', text: config.text, weight: 'bold', size: 'xl', color: config.color, align: 'center', margin: 'sm' }
+            ],
+          },
+          // ชื่อปัญหาที่แจ้ง
+          ...(payload.problemTitle ? [{
+            type: 'box', layout: 'vertical', backgroundColor: '#FFFFFF', cornerRadius: 'lg', paddingAll: '14px', 
+            borderColor: '#E8E8E8', borderWidth: '1px', margin: 'md',
+            contents: [
+              { 
+                type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                contents: [
+                  { type: 'text', text: '🔧', size: 'sm' },
+                  { type: 'text', text: 'ปัญหาที่แจ้ง', size: 'xs', color: '#888888', weight: 'bold' }
+                ]
+              },
+              { type: 'text', text: payload.problemTitle, size: 'md', weight: 'bold', color: '#1A1A1A', wrap: true, margin: 'sm' }
             ],
           }] : []),
-          {
-            type: 'box', layout: 'vertical', backgroundColor: '#FFFFFF', cornerRadius: '8px', paddingAll: '12px', borderColor: '#E0E0E0', borderWidth: '1px',
+          // รายละเอียดปัญหา
+          ...(payload.problemDescription ? [{
+            type: 'box', layout: 'vertical', backgroundColor: '#F8F9FA', cornerRadius: 'lg', paddingAll: '14px', 
+            borderColor: '#E8E8E8', borderWidth: '1px',
             contents: [
-              { type: 'text', text: 'หมายเหตุจากเจ้าหน้าที่', size: 'xs', color: '#888888' },
-              { type: 'text', text: payload.remark || 'ไม่มีหมายเหตุเพิ่มเติม', size: 'sm', color: '#333333', wrap: true, margin: 'sm' },
+              { 
+                type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                contents: [
+                  { type: 'text', text: '📝', size: 'sm' },
+                  { type: 'text', text: 'รายละเอียด', size: 'xs', color: '#888888', weight: 'bold' }
+                ]
+              },
+              { type: 'text', text: payload.problemDescription, size: 'sm', color: '#555555', wrap: true, margin: 'sm' }
+            ],
+          }] : []),
+          { type: 'separator', margin: 'lg', color: '#E0E0E0' },
+          // ข้อมูลเจ้าหน้าที่
+          ...(payload.technicianName ? [{
+            type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', margin: 'md',
+            contents: [
+              { 
+                type: 'box', layout: 'vertical', backgroundColor: '#111827', cornerRadius: 'xxl', 
+                width: '40px', height: '40px', justifyContent: 'center', alignItems: 'center',
+                contents: [{ type: 'text', text: '👨‍💻', size: 'lg' }]
+              },
+              {
+                type: 'box', layout: 'vertical', flex: 1,
+                contents: [
+                  { type: 'text', text: 'เจ้าหน้าที่ผู้รับผิดชอบ', size: 'xxs', color: '#888888' },
+                  { type: 'text', text: payload.technicianName, size: 'md', weight: 'bold', color: '#1A1A1A' }
+                ]
+              }
+            ],
+          }] : [{
+            type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', margin: 'md',
+            contents: [
+              { 
+                type: 'box', layout: 'vertical', backgroundColor: '#FEE2E2', cornerRadius: 'xxl', 
+                width: '40px', height: '40px', justifyContent: 'center', alignItems: 'center',
+                contents: [{ type: 'text', text: '⏳', size: 'lg' }]
+              },
+              {
+                type: 'box', layout: 'vertical', flex: 1,
+                contents: [
+                  { type: 'text', text: 'เจ้าหน้าที่ผู้รับผิดชอบ', size: 'xxs', color: '#888888' },
+                  { type: 'text', text: 'รอมอบหมาย', size: 'md', weight: 'bold', color: '#DC2626' }
+                ]
+              }
+            ],
+          }]),
+          // หมายเหตุจากเจ้าหน้าที่
+          ...(payload.remark ? [{
+            type: 'box', layout: 'vertical', backgroundColor: '#FFFBEB', cornerRadius: 'lg', paddingAll: '14px', 
+            borderColor: '#FCD34D', borderWidth: '1px', margin: 'md',
+            contents: [
+              { 
+                type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                contents: [
+                  { type: 'text', text: '💬', size: 'sm' },
+                  { type: 'text', text: 'หมายเหตุจากเจ้าหน้าที่', size: 'xs', color: '#92400E', weight: 'bold' }
+                ]
+              },
+              { type: 'text', text: payload.remark, size: 'sm', color: '#78350F', wrap: true, margin: 'sm' }
+            ],
+          }] : []),
+          // สิ่งที่ต้องทำต่อไป
+          ...(payload.nextStep ? [{
+            type: 'box', layout: 'vertical', backgroundColor: '#ECFDF5', cornerRadius: 'lg', paddingAll: '14px', 
+            borderColor: '#6EE7B7', borderWidth: '1px', margin: 'md',
+            contents: [
+              { 
+                type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                contents: [
+                  { type: 'text', text: '➡️', size: 'sm' },
+                  { type: 'text', text: 'ขั้นตอนถัดไป', size: 'xs', color: '#047857', weight: 'bold' }
+                ]
+              },
+              { type: 'text', text: payload.nextStep, size: 'sm', color: '#065F46', wrap: true, margin: 'sm' }
+            ],
+          }] : []),
+          // วันที่อัปเดต
+          {
+            type: 'box', layout: 'horizontal', justifyContent: 'flex-end', margin: 'lg',
+            contents: [
+              { type: 'text', text: '🕐 ', size: 'xxs', color: '#AAAAAA' },
+              { type: 'text', text: formattedDate, size: 'xxs', color: '#AAAAAA' }
             ],
           },
+        ],
+      },
+      footer: {
+        type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '16px',
+        contents: [
           {
-            type: 'box', layout: 'horizontal', justifyContent: 'flex-end', margin: 'md',
-            contents: [{ type: 'text', text: formattedDate, size: 'xs', color: '#999999', align: 'end' }],
+            type: 'button', style: 'primary', color: config.color, height: 'sm',
+            action: { type: 'uri', label: '📱 ดูรายละเอียดเพิ่มเติม', uri: url },
           },
         ],
       },
@@ -433,11 +555,11 @@ export class LineOANotificationService {
 
   private getStatusConfig(status: string) {
     return ({
-      PENDING: { color: COLORS.WARNING, text: 'รอดำเนินการ' },
-      IN_PROGRESS: { color: COLORS.INFO, text: 'กำลังดำเนินการ' },
-      COMPLETED: { color: COLORS.SUCCESS, text: 'เสร็จสิ้น' },
-      WAITING_USER: { color: COLORS.WARNING, text: 'รอข้อมูลจากผู้แจ้ง' },
-      CANCELLED: { color: COLORS.SECONDARY, text: 'ยกเลิก' },
-    }[status] || { color: COLORS.PRIMARY, text: status });
+      PENDING: { color: COLORS.WARNING, text: 'รอดำเนินการ', emoji: '⏳' },
+      IN_PROGRESS: { color: COLORS.INFO, text: 'กำลังดำเนินการ', emoji: '🔧' },
+      COMPLETED: { color: COLORS.SUCCESS, text: 'เสร็จสิ้น', emoji: '✅' },
+      WAITING_USER: { color: COLORS.WARNING, text: 'รอข้อมูลจากผู้แจ้ง', emoji: '📝' },
+      CANCELLED: { color: COLORS.SECONDARY, text: 'ยกเลิก', emoji: '❌' },
+    }[status] || { color: COLORS.PRIMARY, text: status, emoji: '📋' });
   }
 }
