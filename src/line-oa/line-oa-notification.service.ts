@@ -337,10 +337,14 @@ export class LineOANotificationService {
 
   private createStatusUpdateFlex(payload: RepairStatusUpdatePayload) {
     const config = this.getStatusConfig(payload.status);
-    // สร้าง URL ที่ redirect ไปหน้า tracking ของ ticket นั้น
+    
+    // สร้าง URL ที่ redirect ไปหน้า history detail ของ ticket นั้น
     const liffId = process.env.LINE_LIFF_ID || '';
-    const trackingPath = `/repairs/liff/tracking?ticketCode=${payload.ticketCode}`;
-    const url = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(trackingPath)}`;
+    // ใช้ path ที่ตรงกับ frontend route: /repairs/liff?action=history&id=xxx
+    const historyPath = `/repairs/liff?action=history&id=${payload.ticketCode}`;
+    const url = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(historyPath)}`;
+    
+    this.logger.log(`[StatusUpdate] Generated URL: ${url}`);
     
     const formattedDate = new Intl.DateTimeFormat('th-TH', {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', 
