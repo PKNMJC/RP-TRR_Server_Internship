@@ -251,7 +251,6 @@ export class LineOANotificationService {
 
   private createRepairTicketFlex(payload: RepairTicketNotificationPayload) {
     const urgency = this.getUrgencyConfig(payload.urgency);
-    const url = `${process.env.FRONTEND_URL}/admin/repairs?id=${payload.ticketCode}`;
 
     return {
       type: 'bubble',
@@ -332,26 +331,11 @@ export class LineOANotificationService {
           }
         ],
       },
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        paddingAll: '12px',
-        contents: [
-          {
-            type: 'button',
-            style: 'primary',
-            color: urgency.color,
-            height: 'sm',
-            action: { type: 'uri', label: 'รับงานซ่อม (Claim)', uri: url },
-          },
-        ],
-      },
     };
   }
 
   private createTechnicianAssignmentFlex(payload: any, actionText: string) {
     const urgency = this.getUrgencyConfig(payload.urgency);
-    const url = `${process.env.FRONTEND_URL}/it/repairs?id=${payload.ticketCode}`;
 
     return {
       type: 'bubble',
@@ -402,30 +386,11 @@ export class LineOANotificationService {
           }
         ],
       },
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        paddingAll: '12px',
-        contents: [{
-          type: 'button',
-          style: 'primary',
-          color: '#111827',
-          height: 'sm',
-          action: { type: 'uri', label: 'ดูรายละเอียดงาน', uri: url },
-        }],
-      },
     };
   }
 
   private createStatusUpdateFlex(payload: RepairStatusUpdatePayload) {
     const config = this.getStatusConfig(payload.status);
-    
-    const liffId = process.env.LINE_LIFF_ID || '';
-    // Simplified URL format: pass parameters directly to LIFF permanent link
-    // This is often more reliable than liff.state for simple parameter passing
-    const url = `https://liff.line.me/${liffId}?action=history&id=${payload.ticketCode}`;
-    
-    this.logger.log(`[StatusUpdate] Generated URL: ${url}`);
     
     const formattedDate = new Intl.DateTimeFormat('th-TH', {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', 
@@ -544,21 +509,6 @@ export class LineOANotificationService {
             contents: [
               { type: 'text', text: `อัปเดต: ${formattedDate}`, size: 'xxs', color: '#9CA3AF' },
             ],
-          },
-        ],
-      },
-      // Footer - Single Action Button
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        paddingAll: '12px',
-        contents: [
-          {
-            type: 'button',
-            style: 'primary',
-            color: config.color,
-            height: 'sm',
-            action: { type: 'uri', label: 'ดูรายละเอียด', uri: url },
           },
         ],
       },
