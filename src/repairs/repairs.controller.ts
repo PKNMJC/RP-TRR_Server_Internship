@@ -334,6 +334,7 @@ export class RepairsController {
           {
             ticketCode: updatedTicket.ticketCode,
             problemTitle: updatedTicket.problemTitle,
+            problemDescription: updatedTicket.problemDescription || undefined,
             status: updateRepairTicketDto.status,
             remark: updateRepairTicketDto.notes || '',
             updatedAt: new Date(),
