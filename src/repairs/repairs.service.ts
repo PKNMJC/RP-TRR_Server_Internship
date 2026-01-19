@@ -102,56 +102,64 @@ export class RepairsService {
     });
 
     // Handle file uploads
-    if (files && files.length > 0) {
+    if (files && Array.isArray(files) && files.length > 0) {
       this.logger.log(`Received ${files.length} files for ticket ${ticketCode}`);
       
       const isServerless = process.env.VERCEL || process.env.NODE_ENV === 'production';
       
       try {
-          let attachments: any[] = [];
+          const attachments: any[] = [];
 
-          if (isServerless) {
-              this.logger.log('Serverless environment detected. Using Base64 storage strategy.');
-              attachments = files.map((file) => {
-                  const base64Data = file.buffer.toString('base64');
-                  const dataUri = `data:${file.mimetype};base64,${base64Data}`;
-                  
-                  return {
-                      repairTicketId: ticket.id,
-                      filename: file.originalname,
-                      fileUrl: dataUri, // Store the entire data-uri as the URL
-                      fileSize: file.size,
-                      mimeType: file.mimetype,
-                  };
-              });
-          } else {
-              this.logger.log('Local environment detected. Saving files to disk.');
-              const uploadsDir = this.ensureUploadsDir();
+          for (const file of files) {
+            // Safety check for file buffer
+            if (!file || !file.buffer) {
+              this.logger.warn(`Skipping file ${file?.originalname || 'unknown'} due to missing buffer`);
+              continue;
+            }
+
+            if (isServerless) {
+              this.logger.log(`Serverless: Processing ${file.originalname} as Base64`);
+              const base64Data = file.buffer.toString('base64');
+              const dataUri = `data:${file.mimetype};base64,${base64Data}`;
               
-              attachments = files.map((file) => {
-                  const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-                  const filename = `${ticketCode}-${Date.now()}-${safeOriginalName}`;
-                  const filePath = path.join(uploadsDir, filename);
-                  
-                  fs.writeFileSync(filePath, file.buffer);
-          
-                  return {
-                      repairTicketId: ticket.id,
-                      filename: file.originalname,
-                      fileUrl: `/uploads/repairs/${filename}`,
-                      fileSize: file.size,
-                      mimeType: file.mimetype,
-                  };
+              attachments.push({
+                repairTicketId: ticket.id,
+                filename: file.originalname,
+                fileUrl: dataUri,
+                fileSize: file.size,
+                mimeType: file.mimetype,
               });
+            } else {
+              this.logger.log(`Local: Saving ${file.originalname} to disk`);
+              const uploadsDir = this.ensureUploadsDir();
+              const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+              const filename = `${ticketCode}-${Date.now()}-${safeOriginalName}`;
+              const filePath = path.join(uploadsDir, filename);
+              
+              fs.writeFileSync(filePath, file.buffer);
+      
+              attachments.push({
+                repairTicketId: ticket.id,
+                filename: file.originalname,
+                fileUrl: `/uploads/repairs/${filename}`,
+                fileSize: file.size,
+                mimeType: file.mimetype,
+              });
+            }
           }
     
-          await this.prisma.repairAttachment.createMany({
-            data: attachments,
-          });
+          if (attachments.length > 0) {
+            await this.prisma.repairAttachment.createMany({
+              data: attachments,
+            });
+            this.logger.log(`Saved ${attachments.length} attachments`);
+          }
           
           return this.findOne(ticket.id);
       } catch (error) {
           this.logger.error(`File storage failure: ${error.message}`, error.stack);
+          // We don't necessarily want to fail the whole request if only images fail,
+          // but for now, we follow the existing pattern of throwing.
           throw new HttpException(`ไม่สามารถบันทึกรูปภาพได้: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
       }
     }

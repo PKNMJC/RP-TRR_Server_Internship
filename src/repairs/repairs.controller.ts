@@ -54,14 +54,21 @@ export class RepairsController {
     }
 
     try {
-      // Extract data from FormData
+      // Extract data from Body (handled by Multer for FormData)
       const createRepairTicketDto = new CreateRepairTicketDto();
-      createRepairTicketDto.reporterName = body.reporterName;
+      createRepairTicketDto.reporterName = body.reporterName || 'ไม่ได้ระบุ';
       createRepairTicketDto.reporterDepartment = body.reporterDepartment;
       createRepairTicketDto.reporterPhone = body.reporterPhone;
-      createRepairTicketDto.reporterLineId = body.reporterLineId;
-      createRepairTicketDto.reporterLineId = body.reporterLineId;
       
+      // Clean LINE ID
+      let lineId = body.reporterLineId;
+      if (!lineId || lineId === 'null' || lineId === 'undefined') {
+        lineId = 'Guest';
+      }
+      createRepairTicketDto.reporterLineId = lineId;
+      
+      logger.log(`Extracted DTO: Name=${createRepairTicketDto.reporterName}, Dept=${createRepairTicketDto.reporterDepartment}, LineID=${createRepairTicketDto.reporterLineId}`);
+
       // Validate and fallback for problemCategory
       const validCategories = Object.values(ProblemCategory);
       if (body.problemCategory && validCategories.includes(body.problemCategory as any)) {
@@ -71,97 +78,80 @@ export class RepairsController {
         createRepairTicketDto.problemCategory = ProblemCategory.OTHER;
       }
       
-      createRepairTicketDto.problemTitle = body.problemTitle;
+      createRepairTicketDto.problemTitle = body.problemTitle || 'ไม่มีหัวข้อ';
       
       // Append Image Categories to Description if present
       let description = body.problemDescription || '';
       if (body.imageCategories) {
         try {
-          const categories = JSON.parse(body.imageCategories);
+          const categories = typeof body.imageCategories === 'string' ? JSON.parse(body.imageCategories) : body.imageCategories;
           if (Array.isArray(categories) && categories.length > 0) {
             const categoryLabels = {
-              monitor: 'หน้าจอ',
-              pc: 'คอมพิวเตอร์',
-              printer: 'เครื่องพิมพ์',
-              network: 'อินเทอร์เน็ต',
-              mouse_keyboard: 'เมาส์/คีย์บอร์ด',
-              software: 'โปรแกรม'
+              monitor: 'หน้าจอ', pc: 'คอมพิวเตอร์', printer: 'เครื่องพิมพ์', 
+              network: 'อินเทอร์เน็ต', mouse_keyboard: 'เมาส์/คีย์บอร์ด', software: 'โปรแกรม'
             };
             const labels = categories.map(c => categoryLabels[c] || c).join(', ');
             description += `\n\n[สัญลักษณ์ที่ระบุ: ${labels}]`;
           }
         } catch (e) {
-          // Ignore parsing error
+          logger.warn(`Failed to parse imageCategories: ${e.message}`);
         }
       }
       createRepairTicketDto.problemDescription = description;
 
-      createRepairTicketDto.location = body.location;
-      createRepairTicketDto.urgency = body.urgency;
+      createRepairTicketDto.location = body.location || 'ไม่ได้ระบุ';
+      createRepairTicketDto.urgency = body.urgency || 'NORMAL';
 
-      logger.log(`Processing LIFF submission for LINE User: ${createRepairTicketDto.reporterLineId}`);
-
-      if (!createRepairTicketDto.reporterLineId) {
-        throw new HttpException(
-          'จำเป็นต้องมี LINE User ID ในการแจ้งซ่อม',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+      logger.log(`Handover to UsersService with LineID: ${lineId}`);
 
       // Upsert User: Create if new, Update profile if existing
       const { displayName, pictureUrl } = body;
       const user = await this.usersService.getOrCreateUserFromLine(
-        createRepairTicketDto.reporterLineId,
+        lineId,
         displayName,
         pictureUrl,
       );
 
       const userId = user.id;
-      logger.log(`Creating ticket for user ${userId} (${user.name})`);
+      logger.log(`Identified User ID: ${userId} (${user.name})`);
 
+      logger.log('Handover to RepairsService for ticket creation...');
       const ticket = await this.repairsService.create(userId, createRepairTicketDto, files);
-      logger.log(`Ticket created: ${ticket!.ticketCode}`);
+      
+      if (!ticket) {
+        throw new Error('Failed to create ticket record in database');
+      }
+      
+      logger.log(`Ticket Successfully Created: ${ticket.ticketCode}`);
 
-      // ส่ง notification ไปยัง IT team
-      if (ticket) {
-        try {
-          await this.lineNotificationService.notifyRepairTicketToITTeam({
-            ticketCode: ticket.ticketCode,
-            reporterName: ticket.reporterName,
-            department: ticket.reporterDepartment || 'ไม่ระบุ',
-            problemTitle: ticket.problemTitle,
-            location: ticket.location,
-            urgency: ticket.urgency,
-            createdAt: new Date().toLocaleString('th-TH'),
-          });
-          logger.log('LINE notification sent');
-        } catch (error) {
-          logger.error('Failed to send LINE notification:', error);
-          // Don't throw - ticket is already created
-        }
+      // ส่ง notification ไปยัง IT team (Async focus)
+      try {
+        await this.lineNotificationService.notifyRepairTicketToITTeam({
+          ticketCode: ticket.ticketCode,
+          reporterName: ticket.reporterName,
+          department: ticket.reporterDepartment || 'ไม่ระบุ',
+          problemTitle: ticket.problemTitle,
+          location: ticket.location,
+          urgency: ticket.urgency as any,
+          createdAt: new Date().toLocaleString('th-TH'),
+        });
+        logger.log('LINE notification sent to IT team');
+      } catch (notifError) {
+        logger.error(`Notification failed but ignored: ${notifError.message}`);
       }
 
       return ticket;
     } catch (error: any) {
-      logger.error(`Error in createFromLiff: ${error.message}`);
-      if (error.stack) {
-        logger.error(error.stack);
-      }
+      logger.error(`CRITICAL FAILURE in createFromLiff: ${error.message}`);
+      if (error.stack) logger.error(error.stack);
       
-      // If already an HttpException, re-throw it
-      if (error instanceof HttpException) {
-        throw error;
-      }
+      if (error instanceof HttpException) throw error;
       
-      // Otherwise wrap in 500 with details
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: error.message || 'Internal server error',
-          error: error.name || 'INTERNAL_ERROR',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: `สร้างรายการแจ้งซ่อมไม่สำเร็จ: ${error.message}`,
+        error: error.name || 'CREATE_TICKET_ERROR',
+      }, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

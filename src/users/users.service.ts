@@ -324,6 +324,11 @@ export class UsersService {
    * Uses real display name from LINE and syncs profile
    */
   async getOrCreateUserFromLine(lineUserId: string, displayName?: string, pictureUrl?: string) {
+    // 0. Explicit handle for Guest
+    if (!lineUserId || lineUserId === 'Guest' || lineUserId.toLowerCase() === 'null') {
+      return this.getOrCreateGuestUser();
+    }
+
     // 1. Check if LineOALink exists
     const existingLink = await this.prisma.lineOALink.findFirst({
       where: { lineUserId },
