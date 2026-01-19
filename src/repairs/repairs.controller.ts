@@ -20,7 +20,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { RepairsService } from './repairs.service';
 import { CreateRepairTicketDto } from './dto/create-repair-ticket.dto';
 import { UpdateRepairTicketDto } from './dto/update-repair-ticket.dto';
-import { RepairTicketStatus, UrgencyLevel } from '@prisma/client';
+import { RepairTicketStatus, UrgencyLevel, ProblemCategory } from '@prisma/client';
 import { LineOANotificationService } from '../line-oa/line-oa-notification.service';
 import { UsersService } from '../users/users.service';
 
@@ -60,7 +60,17 @@ export class RepairsController {
       createRepairTicketDto.reporterDepartment = body.reporterDepartment;
       createRepairTicketDto.reporterPhone = body.reporterPhone;
       createRepairTicketDto.reporterLineId = body.reporterLineId;
-      createRepairTicketDto.problemCategory = body.problemCategory;
+      createRepairTicketDto.reporterLineId = body.reporterLineId;
+      
+      // Validate and fallback for problemCategory
+      const validCategories = Object.values(ProblemCategory);
+      if (body.problemCategory && validCategories.includes(body.problemCategory as any)) {
+        createRepairTicketDto.problemCategory = body.problemCategory as ProblemCategory;
+      } else {
+        logger.warn(`Invalid or missing problemCategory: ${body.problemCategory}. Falling back to OTHER.`);
+        createRepairTicketDto.problemCategory = ProblemCategory.OTHER;
+      }
+      
       createRepairTicketDto.problemTitle = body.problemTitle;
       
       // Append Image Categories to Description if present
@@ -132,8 +142,11 @@ export class RepairsController {
       }
 
       return ticket;
-    } catch (error) {
-      logger.error('Error in createFromLiff:', error);
+    } catch (error: any) {
+      logger.error(`Error in createFromLiff: ${error.message}`);
+      if (error.stack) {
+        logger.error(error.stack);
+      }
       
       // If already an HttpException, re-throw it
       if (error instanceof HttpException) {
