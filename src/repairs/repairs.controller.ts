@@ -268,6 +268,7 @@ export class RepairsController {
     @Query('status') status?: RepairTicketStatus,
     @Query('urgency') urgency?: UrgencyLevel,
     @Query('assignedTo') assignedTo?: string,
+    @Query('limit') limit?: string,
   ) {
     const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'IT';
 
@@ -283,6 +284,9 @@ export class RepairsController {
     }
     if (assignedTo) {
       filters.assignedTo = parseInt(assignedTo);
+    }
+    if (limit) {
+      filters.take = parseInt(limit);
     }
 
     return this.repairsService.findAll(filters);
