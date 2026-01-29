@@ -1,144 +1,107 @@
-import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRepairTicketDto } from './dto/create-repair-ticket.dto';
 import { UpdateRepairTicketDto } from './dto/update-repair-ticket.dto';
 import { UrgencyLevel, RepairTicketStatus } from '@prisma/client';
 import { LineOANotificationService } from '../line-oa/line-oa-notification.service';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class RepairsService {
   private readonly logger = new Logger(RepairsService.name);
 
   constructor(
-    private prisma: PrismaService,
-    private lineNotificationService: LineOANotificationService,
+    private readonly prisma: PrismaService,
+    private readonly lineNotificationService: LineOANotificationService,
   ) {}
 
-  /**
-   * Generate unique ticket code: REP-YYYYMMDD-XXXX
-   */
+  /* =========================
+      Utils
+  ========================= */
+
   private generateTicketCode(): string {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const random = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-    
-    return `REP-${year}${month}${day}-${random}`;
+    const now = new Date();
+    const ymd = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const rand = now.getTime().toString().slice(-5);
+    return `REP-${ymd}-${rand}`;
   }
 
-  /**
-   * Ensure uploads directory exists
-   */
   private ensureUploadsDir(): string {
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'repairs');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    const dir = path.join(process.cwd(), 'uploads', 'repairs');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-    return uploadsDir;
+    return dir;
   }
 
-  /**
-   * Create a new repair ticket
-   */
+  /* =========================
+      Create
+  ========================= */
+
   async create(
     userId: number,
-    createRepairTicketDto: CreateRepairTicketDto,
-    files?: any[],
+    dto: CreateRepairTicketDto,
+    files?: Express.Multer.File[],
   ) {
     const ticketCode = this.generateTicketCode();
+    const isServerless =
+      process.env.VERCEL || process.env.NODE_ENV === 'production';
 
-    const ticket = await this.prisma.repairTicket.create({
-      data: {
-        ticketCode,
-        reporterName: createRepairTicketDto.reporterName,
-        reporterDepartment: createRepairTicketDto.reporterDepartment,
-        reporterPhone: createRepairTicketDto.reporterPhone,
-        reporterLineId: createRepairTicketDto.reporterLineId,
-        problemCategory: createRepairTicketDto.problemCategory,
-        problemTitle: createRepairTicketDto.problemTitle,
-        problemDescription: createRepairTicketDto.problemDescription,
-        location: createRepairTicketDto.location,
-        urgency: (createRepairTicketDto.urgency as UrgencyLevel) || UrgencyLevel.NORMAL,
-        userId,
-        assignedTo: createRepairTicketDto.assignedTo,
-        notes: createRepairTicketDto.notes,
-        scheduledAt: createRepairTicketDto.scheduledAt || new Date(),
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            department: true,
-            lineOALink: {
-              select: {
-                pictureUrl: true,
-              },
-            },
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const ticket = await tx.repairTicket.create({
+          data: {
+            ticketCode,
+            reporterName: dto.reporterName,
+            reporterDepartment: dto.reporterDepartment,
+            reporterPhone: dto.reporterPhone,
+            reporterLineId: dto.reporterLineId,
+            problemCategory: dto.problemCategory,
+            problemTitle: dto.problemTitle,
+            problemDescription: dto.problemDescription,
+            location: dto.location,
+            urgency: dto.urgency ?? UrgencyLevel.NORMAL,
+            userId,
+            assignedTo: dto.assignedTo,
+            notes: dto.notes,
+            scheduledAt: dto.scheduledAt ?? new Date(),
           },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        attachments: true,
-        logs: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    });
+        });
 
-    // Handle file uploads
-    if (files && Array.isArray(files) && files.length > 0) {
-      this.logger.log(`Received ${files.length} files for ticket ${ticketCode}`);
-      
-      const isServerless = process.env.VERCEL || process.env.NODE_ENV === 'production';
-      
-      try {
-          const attachments: any[] = [];
+        if (files?.length) {
+          const attachments = [];
 
           for (const file of files) {
-            // Safety check for file buffer
-            if (!file || !file.buffer) {
-              this.logger.warn(`Skipping file ${file?.originalname || 'unknown'} due to missing buffer`);
-              continue;
-            }
+            if (!file?.buffer) continue;
 
             if (isServerless) {
-              this.logger.log(`Serverless: Processing ${file.originalname} as Base64`);
-              const base64Data = file.buffer.toString('base64');
-              const dataUri = `data:${file.mimetype};base64,${base64Data}`;
-              
               attachments.push({
                 repairTicketId: ticket.id,
                 filename: file.originalname,
-                fileUrl: dataUri,
+                fileUrl: `data:${file.mimetype};base64,${file.buffer.toString(
+                  'base64',
+                )}`,
                 fileSize: file.size,
                 mimeType: file.mimetype,
               });
             } else {
-              this.logger.log(`Local: Saving ${file.originalname} to disk`);
-              const uploadsDir = this.ensureUploadsDir();
-              const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-              const filename = `${ticketCode}-${Date.now()}-${safeOriginalName}`;
-              const filePath = path.join(uploadsDir, filename);
-              
+              const uploadDir = this.ensureUploadsDir();
+              const safeName = file.originalname.replace(
+                /[^a-zA-Z0-9.-]/g,
+                '_',
+              );
+              const filename = `${ticketCode}-${Date.now()}-${safeName}`;
+              const filePath = path.join(uploadDir, filename);
+
               fs.writeFileSync(filePath, file.buffer);
-      
+
               attachments.push({
                 repairTicketId: ticket.id,
                 filename: file.originalname,
@@ -148,344 +111,229 @@ export class RepairsService {
               });
             }
           }
-    
-          if (attachments.length > 0) {
-            await this.prisma.repairAttachment.createMany({
-              data: attachments,
-            });
-            this.logger.log(`Saved ${attachments.length} attachments`);
-          }
-          
-          return this.findOne(ticket.id);
-      } catch (error) {
-          this.logger.error(`File storage failure: ${error.message}`, error.stack);
-          // We don't necessarily want to fail the whole request if only images fail,
-          // but for now, we follow the existing pattern of throwing.
-          throw new HttpException(`ไม่สามารถบันทึกรูปภาพได้: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-    }
 
-    return ticket;
+          if (attachments.length) {
+            await tx.repairAttachment.createMany({ data: attachments });
+          }
+        }
+
+        return tx.repairTicket.findUnique({
+          where: { id: ticket.id },
+          include: {
+            user: true,
+            assignee: true,
+            attachments: true,
+            logs: { orderBy: { createdAt: 'desc' } },
+          },
+        });
+      });
+    } catch (error) {
+      this.logger.error(error.message, error.stack);
+      throw new HttpException(
+        'ไม่สามารถสร้างใบแจ้งซ่อมได้',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
-  /**
-   * Get all repair tickets
-   */
+  /* =========================
+      Read
+  ========================= */
+
   async findAll(filters?: {
     userId?: number;
     status?: RepairTicketStatus;
     urgency?: UrgencyLevel;
     assignedTo?: number;
   }) {
-    const where: any = {};
-
-    if (filters?.userId) {
-      where.userId = filters.userId;
-    }
-    if (filters?.status) {
-      where.status = filters.status;
-    }
-    if (filters?.urgency) {
-      where.urgency = filters.urgency;
-    }
-    if (filters?.assignedTo) {
-      where.assignedTo = filters.assignedTo;
-    }
-
     return this.prisma.repairTicket.findMany({
-      where,
+      where: { ...filters },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            department: true,
-            lineOALink: {
-              select: {
-                pictureUrl: true,
-              },
-            },
-          },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        user: true,
+        assignee: true,
         attachments: true,
         logs: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
+          include: { user: true },
+          orderBy: { createdAt: 'desc' },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
-  /**
-   * Get a single repair ticket by ID
-   */
   async findOne(id: number) {
-    return this.prisma.repairTicket.findUnique({
+    const ticket = await this.prisma.repairTicket.findUnique({
       where: { id },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            department: true,
-            lineOALink: {
-              select: {
-                pictureUrl: true,
-              },
-            },
-          },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        user: true,
+        assignee: true,
         attachments: true,
         logs: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
+          include: { user: true },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
+
+    if (!ticket) {
+      throw new NotFoundException(`Repair ticket #${id} not found`);
+    }
+
+    return ticket;
   }
 
-  /**
-   * Get repair ticket by ticket code
-   */
   async findByCode(ticketCode: string) {
-    return this.prisma.repairTicket.findUnique({
+    const ticket = await this.prisma.repairTicket.findUnique({
       where: { ticketCode },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            department: true,
-            lineOALink: {
-              select: {
-                pictureUrl: true,
-              },
-            },
-          },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        user: true,
+        assignee: true,
         attachments: true,
         logs: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
+          include: { user: true },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket ${ticketCode} not found`);
+    }
+
+    return ticket;
   }
 
-  /**
-   * Update repair ticket
-   */
+  /* =========================
+      Update
+  ========================= */
+
   async update(
     id: number,
-    updateRepairTicketDto: UpdateRepairTicketDto,
+    dto: UpdateRepairTicketDto,
     updatedById: number,
   ) {
-    // Create log entry for status change or assignee change
-    if (updateRepairTicketDto.status || updateRepairTicketDto.assignedTo) {
-      const currentTicket = await this.prisma.repairTicket.findUnique({
-        where: { id },
-        include: { assignee: true },
-      });
+    const ticket = await this.prisma.repairTicket.findUnique({
+      where: { id },
+      include: { assignee: true },
+    });
 
-      if (!currentTicket) {
-        throw new NotFoundException(`Repair ticket #${id} not found`);
-      }
+    if (!ticket) {
+      throw new NotFoundException(`Repair ticket #${id} not found`);
+    }
 
-      let logComment = updateRepairTicketDto.notes;
+    const assignedTo =
+      dto.assignedTo !== undefined ? Number(dto.assignedTo) : undefined;
 
-      // Handle Assignee Change (Transfer)
-      if (updateRepairTicketDto.assignedTo && updateRepairTicketDto.assignedTo !== currentTicket.assignedTo) {
+    if (dto.status || assignedTo !== undefined) {
+      let comment = dto.notes;
+
+      if (assignedTo !== undefined && assignedTo !== ticket.assignedTo) {
         const newAssignee = await this.prisma.user.findUnique({
-          where: { id: updateRepairTicketDto.assignedTo },
+          where: { id: assignedTo },
         });
-        const transferMsg = `โอนงานจาก ${currentTicket.assignee?.name || 'ไม่มีผู้รับผิดชอบ'} ไปยัง ${newAssignee?.name || 'ยังไม่ระบุ'}`;
-        logComment = logComment ? `${transferMsg} | ${logComment}` : transferMsg;
+
+        comment =
+          `โอนงานจาก ${ticket.assignee?.name ?? 'ไม่มีผู้รับผิดชอบ'} ` +
+          `ไปยัง ${newAssignee?.name ?? 'ไม่ทราบชื่อ'}` +
+          (comment ? ` | ${comment}` : '');
       }
 
       await this.prisma.repairTicketLog.create({
         data: {
           repairTicketId: id,
-          status: updateRepairTicketDto.status ?? currentTicket.status,
-          comment: logComment,
+          status: dto.status ?? ticket.status,
+          comment:
+            comment ??
+            `เปลี่ยนสถานะเป็น ${dto.status ?? ticket.status}`,
           updatedBy: updatedById,
         },
       });
     }
 
-    // Prepare update data
-    const updateData: any = { ...updateRepairTicketDto };
-    if (updateRepairTicketDto.status === RepairTicketStatus.COMPLETED) {
-      updateData.completedAt = new Date();
-    }
-    
-    // Ensure scheduledAt is converted to Date object if it's a string
-    if (updateData.scheduledAt && typeof updateData.scheduledAt === 'string') {
-      updateData.scheduledAt = new Date(updateData.scheduledAt);
-    }
-
-    const updatedTicket = await this.prisma.repairTicket.update({
+    const updated = await this.prisma.repairTicket.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...dto,
+        assignedTo,
+        completedAt:
+          dto.status === RepairTicketStatus.COMPLETED
+            ? new Date()
+            : undefined,
+        scheduledAt:
+          typeof dto.scheduledAt === 'string'
+            ? new Date(dto.scheduledAt)
+            : dto.scheduledAt,
+      },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            department: true,
-            lineOALink: {
-              select: {
-                pictureUrl: true,
-              },
-            },
-          },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        user: true,
+        assignee: true,
         attachments: true,
-        logs: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        },
+        logs: { orderBy: { createdAt: 'desc' } },
       },
     });
 
-    // Handle Technician Notifications on Assignment/Transfer
-    if (updateRepairTicketDto.assignedTo && updatedTicket.assignee) {
-      const isTransfer = updatedTicket.logs?.some(log => log.comment?.includes('โอนงาน'));
-      const isClaim = updatedById === updatedTicket.assignedTo && !isTransfer;
-      
+    const updatedAny = updated as any;
+
+    if (assignedTo && updatedAny.assignee) {
       try {
         await this.lineNotificationService.notifyTechnicianTaskAssignment(
-          updatedTicket.assignedTo!,
+          assignedTo,
           {
-            ticketCode: updatedTicket.ticketCode,
-            problemTitle: updatedTicket.problemTitle,
-            reporterName: updatedTicket.reporterName || updatedTicket.user?.name || 'ไม่ระบุ',
-            urgency: updatedTicket.urgency as any,
-            action: isTransfer ? 'TRANSFERRED' : (isClaim ? 'CLAIMED' : 'ASSIGNED'),
-            imageUrl: updatedTicket.attachments?.[0]?.fileUrl,
-          }
+            ticketCode: updated.ticketCode,
+            problemTitle: updated.problemTitle,
+            reporterName:
+              updated.reporterName ?? updatedAny.user?.name ?? 'ไม่ระบุ',
+            urgency: updated.urgency as any,
+            action: 'ASSIGNED',
+            imageUrl: updatedAny.attachments?.[0]?.fileUrl,
+          },
         );
-      } catch (error) {
-        this.logger.error('Failed to notify technician:', error);
+      } catch (e) {
+        this.logger.warn('LINE OA notify failed');
       }
     }
 
-    return updatedTicket;
+    return updated;
   }
 
-  /**
-   * Delete repair ticket
-   */
+  /* =========================
+      Delete (Soft)
+  ========================= */
+
   async remove(id: number) {
-    return this.prisma.repairTicket.delete({
+    return this.prisma.repairTicket.update({
       where: { id },
+      data: {
+        status: RepairTicketStatus.CANCELLED,
+        cancelledAt: new Date(),
+      },
     });
   }
 
-  /**
-   * Get user's repair tickets
-   */
-  async getUserTickets(userId: number) {
-    return this.findAll({ userId });
-  }
+  /* =========================
+      Others
+  ========================= */
 
-  /**
-   * Get tickets assigned to a technician
-   */
-  async getAssignedTickets(technicianId: number) {
-    return this.findAll({ assignedTo: technicianId });
-  }
-
-  /**
-   * Get statistics
-   */
   async getStatistics() {
-    const total = await this.prisma.repairTicket.count();
-    const pending = await this.prisma.repairTicket.count({
-      where: { status: RepairTicketStatus.PENDING },
-    });
-    const inProgress = await this.prisma.repairTicket.count({
-      where: { status: RepairTicketStatus.IN_PROGRESS },
-    });
-    const waitingParts = await this.prisma.repairTicket.count({
-      where: { status: RepairTicketStatus.WAITING_PARTS },
-    });
-    const completed = await this.prisma.repairTicket.count({
-      where: { status: RepairTicketStatus.COMPLETED },
-    });
-    const cancelled = await this.prisma.repairTicket.count({
-      where: { status: RepairTicketStatus.CANCELLED },
-    });
+    const [total, pending, inProgress, waitingParts, completed, cancelled] =
+      await Promise.all([
+        this.prisma.repairTicket.count(),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.PENDING },
+        }),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.IN_PROGRESS },
+        }),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.WAITING_PARTS },
+        }),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.COMPLETED },
+        }),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.CANCELLED },
+        }),
+      ]);
 
     return {
       total,
@@ -497,31 +345,6 @@ export class RepairsService {
     };
   }
 
-  /**
-   * Find user by LINE User ID
-   */
-  async findUserByLineId(lineUserId: string) {
-    // Find LINE OA Link first
-    const lineLink = await this.prisma.lineOALink.findFirst({
-      where: {
-        lineUserId,
-        status: 'VERIFIED',
-      },
-    });
-
-    if (!lineLink) {
-      return null;
-    }
-
-    // Then find the user
-    return this.prisma.user.findUnique({
-      where: { id: lineLink.userId },
-    });
-  }
-
-  /**
-   * Get formatted schedule data for calendar
-   */
   async getSchedule() {
     return this.prisma.repairTicket.findMany({
       select: {
@@ -530,16 +353,38 @@ export class RepairsService {
         problemTitle: true,
         status: true,
         urgency: true,
-        createdAt: true,
-        reporterName: true,
-        location: true,
         scheduledAt: true,
-        problemDescription: true,
-        completedAt: true,
+        location: true,
       },
-      orderBy: {
-        scheduledAt: 'asc',
+      orderBy: { scheduledAt: 'asc' },
+    });
+  }
+
+  /* =========================
+      User-related methods
+  ========================= */
+
+  async findUserByLineId(lineUserId: string) {
+    const link = await this.prisma.lineOALink.findFirst({
+      where: { lineUserId },
+      include: { user: true },
+    });
+    return link?.user;
+  }
+
+  async getUserTickets(userId: number) {
+    return this.prisma.repairTicket.findMany({
+      where: { userId },
+      include: {
+        user: true,
+        assignee: true,
+        attachments: true,
+        logs: {
+          include: { user: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }

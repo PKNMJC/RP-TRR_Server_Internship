@@ -10,7 +10,6 @@ import {
   UseInterceptors,
   UploadedFiles,
   Query,
-  Injectable,
   SetMetadata,
   HttpException,
   HttpStatus,
@@ -21,228 +20,77 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { RepairsService } from './repairs.service';
 import { CreateRepairTicketDto } from './dto/create-repair-ticket.dto';
 import { UpdateRepairTicketDto } from './dto/update-repair-ticket.dto';
-import { RepairTicketStatus, UrgencyLevel, ProblemCategory } from '@prisma/client';
+import {
+  RepairTicketStatus,
+  UrgencyLevel,
+  ProblemCategory,
+} from '@prisma/client';
 import { LineOANotificationService } from '../line-oa/line-oa-notification.service';
 import { UsersService } from '../users/users.service';
 
 @Controller('api/repairs')
 export class RepairsController {
+  private readonly logger = new Logger(RepairsController.name);
+
   constructor(
-    private repairsService: RepairsService,
-    private lineNotificationService: LineOANotificationService,
-    private usersService: UsersService,
+    private readonly repairsService: RepairsService,
+    private readonly lineNotificationService: LineOANotificationService,
+    private readonly usersService: UsersService,
   ) {}
 
-  /**
-   * Create a new repair ticket (Public endpoint for LINE LIFF)
-   */
+  /* =====================================================
+      LIFF : Create Ticket (Public)
+  ===================================================== */
+
   @SetMetadata('isPublic', true)
   @Post('liff/create')
   @UseInterceptors(FilesInterceptor('files', 3))
   async createFromLiff(
     @Request() req: any,
-    @Body() body: any,
-    @UploadedFiles() files?: any[],
+    @Body() body: Record<string, any>,
+    @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    const logger = new Logger('RepairsController.createFromLiff');
-    
-    // DEBUG: Log received data
-    logger.log(`Content-Type: ${req.headers['content-type']}`);
-    logger.log(`Received Request Body Keys: ${Object.keys(body).join(', ')}`);
-    logger.log(`Received Files Count: ${files ? files.length : 0}`);
-    if (files && files.length > 0) {
-        files.forEach((f, i) => logger.log(`File [${i}]: ${f.originalname} (${f.size} bytes)`));
-    }
-
     try {
-      // Extract data from Body (handled by Multer for FormData)
-      const createRepairTicketDto = new CreateRepairTicketDto();
-      createRepairTicketDto.reporterName = body.reporterName || 'ไม่ได้ระบุ';
-      createRepairTicketDto.reporterDepartment = body.reporterDepartment;
-      createRepairTicketDto.reporterPhone = body.reporterPhone;
-      
-      // Clean LINE ID
-      let lineId = body.reporterLineId;
-      if (!lineId || lineId === 'null' || lineId === 'undefined') {
-        lineId = 'Guest';
-      }
-      createRepairTicketDto.reporterLineId = lineId;
-      
-      logger.log(`Extracted DTO: Name=${createRepairTicketDto.reporterName}, Dept=${createRepairTicketDto.reporterDepartment}, LineID=${createRepairTicketDto.reporterLineId}`);
+      const dto = new CreateRepairTicketDto();
 
-      // Validate and fallback for problemCategory
-      const validCategories = Object.values(ProblemCategory);
-      if (body.problemCategory && validCategories.includes(body.problemCategory as any)) {
-        createRepairTicketDto.problemCategory = body.problemCategory as ProblemCategory;
-      } else {
-        logger.warn(`Invalid or missing problemCategory: ${body.problemCategory}. Falling back to OTHER.`);
-        createRepairTicketDto.problemCategory = ProblemCategory.OTHER;
-      }
-      
-      createRepairTicketDto.problemTitle = body.problemTitle || 'ไม่มีหัวข้อ';
-      
-      // Append Image Categories to Description if present
-      let description = body.problemDescription || '';
-      if (body.imageCategories) {
-        try {
-          const categories = typeof body.imageCategories === 'string' ? JSON.parse(body.imageCategories) : body.imageCategories;
-          if (Array.isArray(categories) && categories.length > 0) {
-            const categoryLabels = {
-              monitor: 'หน้าจอ', pc: 'คอมพิวเตอร์', printer: 'เครื่องพิมพ์', 
-              network: 'อินเทอร์เน็ต', mouse_keyboard: 'เมาส์/คีย์บอร์ด', software: 'โปรแกรม'
-            };
-            const labels = categories.map(c => categoryLabels[c] || c).join(', ');
-            description += `\n\n[สัญลักษณ์ที่ระบุ: ${labels}]`;
-          }
-        } catch (e) {
-          logger.warn(`Failed to parse imageCategories: ${e.message}`);
-        }
-      }
-      createRepairTicketDto.problemDescription = description;
+      dto.reporterName = body.reporterName || 'ไม่ได้ระบุ';
+      dto.reporterDepartment = body.reporterDepartment;
+      dto.reporterPhone = body.reporterPhone;
+      dto.location = body.location || 'ไม่ได้ระบุ';
+      dto.problemTitle = body.problemTitle || 'ไม่มีหัวข้อ';
 
-      createRepairTicketDto.location = body.location || 'ไม่ได้ระบุ';
-      createRepairTicketDto.urgency = body.urgency || 'NORMAL';
+      dto.reporterLineId =
+        body.reporterLineId && body.reporterLineId !== 'null'
+          ? body.reporterLineId
+          : 'Guest';
 
-      logger.log(`Handover to UsersService with LineID: ${lineId}`);
+      dto.problemCategory = Object.values(ProblemCategory).includes(
+        body.problemCategory,
+      )
+        ? body.problemCategory
+        : ProblemCategory.OTHER;
 
-      // Upsert User: Create if new, Update profile if existing
-      const { displayName, pictureUrl } = body;
+      dto.urgency = Object.values(UrgencyLevel).includes(body.urgency)
+        ? body.urgency
+        : UrgencyLevel.NORMAL;
+
+      dto.problemDescription = body.problemDescription || '';
+
       const user = await this.usersService.getOrCreateUserFromLine(
-        lineId,
-        displayName,
-        pictureUrl,
+        dto.reporterLineId,
+        body.displayName,
+        body.pictureUrl,
       );
 
-      const userId = user.id;
-      logger.log(`Identified User ID: ${userId} (${user.name})`);
-
-      logger.log('Handover to RepairsService for ticket creation...');
-      const ticket = await this.repairsService.create(userId, createRepairTicketDto, files);
-      
-      if (!ticket) {
-        throw new Error('Failed to create ticket record in database');
-      }
-      
-      logger.log(`Ticket Successfully Created: ${ticket.ticketCode}`);
-
-      // ส่ง notification ไปยัง IT team (Async focus)
-      try {
-        await this.lineNotificationService.notifyRepairTicketToITTeam({
-          ticketCode: ticket.ticketCode,
-          reporterName: ticket.reporterName,
-          department: ticket.reporterDepartment || 'ไม่ระบุ',
-          problemTitle: ticket.problemTitle,
-          location: ticket.location,
-          urgency: ticket.urgency as any,
-          createdAt: new Date().toLocaleString('th-TH'),
-        });
-        logger.log('LINE notification sent to IT team');
-      } catch (notifError) {
-        logger.error(`Notification failed but ignored: ${notifError.message}`);
-      }
-
-      return ticket;
-    } catch (error: any) {
-      logger.error(`CRITICAL FAILURE in createFromLiff: ${error.message}`);
-      if (error.stack) logger.error(error.stack);
-      
-      if (error instanceof HttpException) throw error;
-      
-      throw new HttpException({
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: `สร้างรายการแจ้งซ่อมไม่สำเร็จ: ${error.message}`,
-        error: error.name || 'CREATE_TICKET_ERROR',
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  /**
-   * Get ticket details for LIFF (Public endpoint with LINE ID verification)
-   */
-  @SetMetadata('isPublic', true)
-  @Get('liff/ticket/:code')
-  async getTicketForLiff(
-    @Param('code') code: string,
-    @Query('lineUserId') lineUserId: string,
-  ) {
-    const logger = new Logger('RepairsController.getTicketForLiff');
-    
-    if (!lineUserId) {
-      throw new HttpException(
-        'LINE User ID is required',
-        HttpStatus.BAD_REQUEST
+      const ticket = await this.repairsService.create(
+        user.id,
+        dto,
+        files,
       );
-    }
 
-    // 1. Find user by LINE ID to verify identity
-    const user = await this.repairsService.findUserByLineId(lineUserId);
-    if (!user) {
-       throw new HttpException(
-        'User not found or not linked to LINE',
-        HttpStatus.FORBIDDEN
-      );
-    }
-
-    // 2. Find ticket
-    const ticket = await this.repairsService.findByCode(code);
-    if (!ticket) {
-      throw new HttpException(
-        'Ticket not found',
-        HttpStatus.NOT_FOUND
-      );
-    }
-
-    // 3. Verify ownership (allow if user is owner OR user is IT/Admin)
-    const isOwner = ticket.userId === user.id;
-    const isAdmin = user.role === 'ADMIN' || user.role === 'IT';
-
-    if (!isOwner && !isAdmin) {
-      throw new HttpException(
-        'You do not have permission to view this ticket',
-        HttpStatus.FORBIDDEN
-      );
-    }
-
-    return ticket;
-  }
-
-  /**
-   * Get user tickets for LIFF (Public endpoint with LINE ID verification)
-   */
-  @SetMetadata('isPublic', true)
-  @Get('liff/my-tickets')
-  async getLiffUserTickets(@Query('lineUserId') lineUserId: string) {
-    if (!lineUserId) {
-      throw new HttpException(
-        'LINE User ID is required',
-        HttpStatus.BAD_REQUEST
-      );
-    }
-
-    const user = await this.repairsService.findUserByLineId(lineUserId);
-    if (!user) {
-      return []; // Return empty if user not found (not linked yet)
-    }
-
-    return this.repairsService.getUserTickets(user.id);
-  }
-
-  /**
-   * Create a new repair ticket (Protected endpoint for authenticated users)
-   */
-  @Post()
-  @UseInterceptors(FilesInterceptor('files', 3))
-  async create(
-    @Request() req: any,
-    @Body() createRepairTicketDto: CreateRepairTicketDto,
-    @UploadedFiles() files?: any[],
-  ) {
-    const ticket = await this.repairsService.create(req.user.id, createRepairTicketDto, files);
-
-    // ส่ง notification ไปยัง IT team
-    if (ticket) {
-      try {
-        await this.lineNotificationService.notifyRepairTicketToITTeam({
+      // Notify IT (fire & forget)
+      this.lineNotificationService
+        .notifyRepairTicketToITTeam({
           ticketCode: ticket.ticketCode,
           reporterName: ticket.reporterName,
           department: ticket.reporterDepartment || 'ไม่ระบุ',
@@ -250,165 +98,160 @@ export class RepairsController {
           location: ticket.location,
           urgency: ticket.urgency,
           createdAt: new Date().toLocaleString('th-TH'),
-        });
-      } catch (error) {
-        console.error('Failed to send LINE notification:', error);
-        // ไม่ throw error, เพราะ ticket ถูกสร้างแล้ว
-      }
+        })
+        .catch(() => this.logger.warn('IT notify failed'));
+
+      return ticket;
+    } catch (error: any) {
+      this.logger.error(error.message, error.stack);
+      throw new HttpException(
+        'สร้างรายการแจ้งซ่อมไม่สำเร็จ',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /* =====================================================
+      LIFF : Read
+  ===================================================== */
+
+  @SetMetadata('isPublic', true)
+  @Get('liff/ticket/:code')
+  async getTicketForLiff(
+    @Param('code') code: string,
+    @Query('lineUserId') lineUserId: string,
+  ) {
+    if (!lineUserId) {
+      throw new HttpException(
+        'LINE User ID is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const user = await this.repairsService.findUserByLineId(lineUserId);
+    if (!user) {
+      throw new HttpException(
+        'User not linked to LINE',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const ticket = await this.repairsService.findByCode(code);
+
+    const isOwner = ticket.userId === user.id;
+    const isAdmin = ['ADMIN', 'IT'].includes(user.role);
+
+    if (!isOwner && !isAdmin) {
+      throw new HttpException(
+        'Permission denied',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     return ticket;
   }
 
-  /**
-   * Get all repair tickets
-   */
+  @SetMetadata('isPublic', true)
+  @Get('liff/my-tickets')
+  async getLiffUserTickets(@Query('lineUserId') lineUserId: string) {
+    if (!lineUserId) {
+      throw new HttpException(
+        'LINE User ID is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const user = await this.repairsService.findUserByLineId(lineUserId);
+    if (!user) return [];
+
+    return this.repairsService.getUserTickets(user.id);
+  }
+
+  /* =====================================================
+      Protected APIs
+  ===================================================== */
+
+  @Post()
+  @UseInterceptors(FilesInterceptor('files', 3))
+  async create(
+    @Request() req: any,
+    @Body() dto: CreateRepairTicketDto,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    return this.repairsService.create(req.user.id, dto, files);
+  }
+
   @Get()
   async findAll(
     @Request() req: any,
     @Query('status') status?: RepairTicketStatus,
     @Query('urgency') urgency?: UrgencyLevel,
     @Query('assignedTo') assignedTo?: string,
-    @Query('limit') limit?: string,
   ) {
-    const logger = new Logger('RepairsController.findAll');
-    
-    try {
-      // Debug: Log user information
-      logger.log(`User from request: ${JSON.stringify(req.user)}`);
-      
-      // Safety check for user
-      if (!req.user) {
-        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
-      }
-      
-      const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'IT';
+    const isAdmin = ['ADMIN', 'IT'].includes(req.user.role);
 
-      const filters: any = {};
-      if (!isAdmin) {
-        filters.userId = req.user.id;
-      }
-      if (status) {
-        filters.status = status;
-      }
-      if (urgency) {
-        filters.urgency = urgency;
-      }
-      if (assignedTo) {
-        filters.assignedTo = parseInt(assignedTo);
-      }
-      if (limit) {
-        filters.take = parseInt(limit);
-      }
+    const filters: any = {};
+    if (!isAdmin) filters.userId = req.user.id;
+    if (status) filters.status = status;
+    if (urgency) filters.urgency = urgency;
+    if (assignedTo) filters.assignedTo = Number(assignedTo);
 
-      logger.log(`Fetching repairs with filters: ${JSON.stringify(filters)}`);
-      const result = await this.repairsService.findAll(filters);
-      logger.log(`Successfully fetched ${result?.length || 0} repairs`);
-      
-      return result;
-    } catch (error: any) {
-      logger.error(`Error in findAll: ${error.message}`, error.stack);
-      
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      
-      throw new HttpException(
-        { message: `Failed to fetch repairs: ${error.message}`, error: error.name || 'UnknownError' },
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
+    return this.repairsService.findAll(filters);
   }
 
-  /**
-   * Get repair schedule data
-   */
   @Get('schedule')
   async getSchedule() {
     return this.repairsService.getSchedule();
   }
 
-  /**
-   * Get statistics
-   */
   @Get('statistics/overview')
   async getStatistics() {
     return this.repairsService.getStatistics();
   }
 
-  /**
-   * Get user's repair tickets
-   */
   @Get('user/my-tickets')
   async getUserTickets(@Request() req: any) {
     return this.repairsService.getUserTickets(req.user.id);
   }
 
-  /**
-   * Get repair ticket by code
-   */
   @Get('code/:code')
   async findByCode(@Param('code') code: string) {
     return this.repairsService.findByCode(code);
   }
 
-  /**
-   * Get repair ticket by ID
-   */
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.repairsService.findOne(id);
   }
 
-  /**
-   * Update repair ticket
-   */
   @Put(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateRepairTicketDto: UpdateRepairTicketDto,
+    @Body() dto: UpdateRepairTicketDto,
     @Request() req: any,
   ) {
-    const updatedTicket = await this.repairsService.update(
+    const updated = await this.repairsService.update(
       id,
-      updateRepairTicketDto,
+      dto,
       req.user.id,
     );
 
-    // ถ้าเปลี่ยนสถานะ ให้ส่ง notification ไปผู้แจ้ง
-    if (updateRepairTicketDto.status && updatedTicket.userId) {
-      try {
-        const statusMessages = {
-          PENDING: 'รอดำเนินการ',
-          IN_PROGRESS: 'กำลังดำเนินการ',
-          WAITING_PARTS: 'รอชิ้นส่วน',
-          COMPLETED: 'เสร็จสิ้น ✅',
-          CANCELLED: 'ยกเลิก',
-        };
-
-        await this.lineNotificationService.notifyRepairTicketStatusUpdate(
-          updatedTicket.userId,
-          {
-            ticketCode: updatedTicket.ticketCode,
-            problemTitle: updatedTicket.problemTitle,
-            problemDescription: updatedTicket.problemDescription || undefined,
-            status: updateRepairTicketDto.status,
-            remark: updateRepairTicketDto.notes || '',
-            updatedAt: new Date(),
-            technicianName: updatedTicket.assignee?.name,
-          },
-        );
-      } catch (error) {
-        console.error('Failed to send status update notification:', error);
-      }
+    if (dto.status) {
+      this.lineNotificationService
+        .notifyRepairTicketStatusUpdate(updated.userId, {
+          ticketCode: updated.ticketCode,
+          problemTitle: updated.problemTitle,
+          status: dto.status,
+          remark: dto.notes,
+          updatedAt: new Date(),
+          technicianName: (updated as any).assignee?.name,
+        })
+        .catch(() => this.logger.warn('User notify failed'));
     }
 
-    return updatedTicket;
+    return updated;
   }
 
-  /**
-   * Delete repair ticket
-   */
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.repairsService.remove(id);
