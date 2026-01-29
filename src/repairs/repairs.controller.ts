@@ -77,7 +77,7 @@ export class RepairsController {
       dto.problemDescription = body.problemDescription || '';
 
       const user = await this.usersService.getOrCreateUserFromLine(
-        dto.reporterLineId,
+        dto.reporterLineId ?? 'Guest',
         body.displayName,
         body.pictureUrl,
       );
@@ -88,18 +88,20 @@ export class RepairsController {
         files,
       );
 
-      // Notify IT (fire & forget)
-      this.lineNotificationService
-        .notifyRepairTicketToITTeam({
-          ticketCode: ticket.ticketCode,
-          reporterName: ticket.reporterName,
-          department: ticket.reporterDepartment || 'ไม่ระบุ',
-          problemTitle: ticket.problemTitle,
-          location: ticket.location,
-          urgency: ticket.urgency,
-          createdAt: new Date().toLocaleString('th-TH'),
-        })
-        .catch(() => this.logger.warn('IT notify failed'));
+      if (ticket) {
+        // Notify IT (fire & forget)
+        this.lineNotificationService
+          .notifyRepairTicketToITTeam({
+            ticketCode: ticket.ticketCode,
+            reporterName: ticket.reporterName,
+            department: ticket.reporterDepartment || 'ไม่ระบุ',
+            problemTitle: ticket.problemTitle,
+            location: ticket.location,
+            urgency: ticket.urgency,
+            createdAt: new Date().toLocaleString('th-TH'),
+          })
+          .catch(() => this.logger.warn('IT notify failed'));
+      }
 
       return ticket;
     } catch (error: any) {

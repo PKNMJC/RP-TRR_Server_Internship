@@ -301,6 +301,7 @@ model RepairTicket {
   notes       String?   @db.Text
   scheduledAt DateTime  @default(now())
   completedAt DateTime?
+  cancelledAt DateTime?
 
   // Attachments
   attachments RepairAttachment[]

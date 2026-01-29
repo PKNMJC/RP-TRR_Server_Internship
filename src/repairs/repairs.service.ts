@@ -76,7 +76,7 @@ export class RepairsService {
         });
 
         if (files?.length) {
-          const attachments = [];
+          const attachments: any[] = [];
 
           for (const file of files) {
             if (!file?.buffer) continue;
