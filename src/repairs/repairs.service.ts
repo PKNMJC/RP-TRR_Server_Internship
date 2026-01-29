@@ -4,7 +4,122 @@ import { RepairTicketStatus, UrgencyLevel } from '@prisma/client';
 
 @Injectable()
 export class RepairsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(userId: number, dto: any, files?: Express.Multer.File[]) {
+    const ticketCode = `REP-${Date.now()}`;
+    // Simple implementation for now to restore functionality
+    const ticket = await this.prisma.repairTicket.create({
+      data: {
+        ticketCode,
+        reporterName: dto.reporterName,
+        reporterDepartment: dto.reporterDepartment || null,
+        reporterPhone: dto.reporterPhone || null,
+        reporterLineId: dto.reporterLineId || null,
+        problemCategory: dto.problemCategory,
+        problemTitle: dto.problemTitle,
+        problemDescription: dto.problemDescription || null,
+        location: dto.location,
+        urgency: dto.urgency || UrgencyLevel.NORMAL,
+        userId,
+        // assignedTo: dto.assignedTo, // Optional
+        notes: dto.notes || null,
+        scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : new Date(),
+      },
+    });
+    return ticket;
+  }
+
+  async findOne(id: number) {
+    const ticket = await this.prisma.repairTicket.findUnique({
+      where: { id },
+      include: {
+        user: true,
+        assignee: true,
+        attachments: true,
+        logs: { include: { user: true }, orderBy: { createdAt: 'desc' } },
+      },
+    });
+    if (!ticket) throw new Error(`Repair ticket #${id} not found`);
+    return ticket;
+  }
+
+  async findByCode(ticketCode: string) {
+    const ticket = await this.prisma.repairTicket.findUnique({
+      where: { ticketCode },
+      include: {
+        user: true,
+        assignee: true,
+        attachments: true,
+        logs: { include: { user: true }, orderBy: { createdAt: 'desc' } },
+      },
+    });
+    if (!ticket) throw new Error(`Ticket ${ticketCode} not found`);
+    return ticket;
+  }
+
+  async update(id: number, dto: any, updatedById: number) {
+     return this.prisma.repairTicket.update({
+      where: { id },
+      data: {
+        ...dto,
+        scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : undefined,
+      },
+    });
+  }
+
+  async remove(id: number) {
+    return this.prisma.repairTicket.update({
+        where: { id },
+        data: { status: RepairTicketStatus.CANCELLED, cancelledAt: new Date() }
+    });
+  }
+
+  async getStatistics() {
+    const [total, pending, inProgress, waitingParts, completed, cancelled] =
+      await Promise.all([
+        this.prisma.repairTicket.count(),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.PENDING },
+        }),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.IN_PROGRESS },
+        }),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.WAITING_PARTS },
+        }),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.COMPLETED },
+        }),
+        this.prisma.repairTicket.count({
+          where: { status: RepairTicketStatus.CANCELLED },
+        }),
+      ]);
+
+    return {
+      total,
+      pending,
+      inProgress,
+      waitingParts,
+      completed,
+      cancelled,
+    };
+  }
+
+  async getSchedule() {
+    return this.prisma.repairTicket.findMany({
+      select: {
+        id: true,
+        ticketCode: true,
+        problemTitle: true,
+        status: true,
+        urgency: true,
+        scheduledAt: true,
+        location: true,
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+  }
 
   async findAll(params: {
     userId?: number;
