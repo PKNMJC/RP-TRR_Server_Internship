@@ -164,4 +164,27 @@ export class RepairsService {
       orderBy: { createdAt: 'desc' },
     });
   }
+  async findUserByLineId(lineUserId: string) {
+    const link = await this.prisma.lineOALink.findFirst({
+      where: { lineUserId },
+      include: { user: true },
+    });
+    return link?.user;
+  }
+
+  async getUserTickets(userId: number) {
+    return this.prisma.repairTicket.findMany({
+      where: { userId },
+      include: {
+        user: true,
+        assignee: true,
+        attachments: true,
+        logs: {
+          include: { user: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }
