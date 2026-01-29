@@ -15,6 +15,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { RepairsService } from './repairs.service';
@@ -296,8 +297,16 @@ export class RepairsController {
    * Get repair ticket by ID
    */
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.repairsService.findOne(parseInt(id));
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.repairsService.findOne(id);
+  }
+
+  /**
+   * Get repair schedule data
+   */
+  @Get('schedule')
+  async getSchedule() {
+    return this.repairsService.getSchedule();
   }
 
   /**
@@ -313,12 +322,12 @@ export class RepairsController {
    */
   @Put(':id')
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateRepairTicketDto: UpdateRepairTicketDto,
     @Request() req: any,
   ) {
     const updatedTicket = await this.repairsService.update(
-      parseInt(id),
+      id,
       updateRepairTicketDto,
       req.user.id,
     );
@@ -358,8 +367,8 @@ export class RepairsController {
    * Delete repair ticket
    */
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.repairsService.remove(parseInt(id));
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    return this.repairsService.remove(id);
   }
 
   /**

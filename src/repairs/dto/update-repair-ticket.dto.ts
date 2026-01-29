@@ -10,4 +10,7 @@ export class UpdateRepairTicketDto extends PartialType(CreateRepairTicketDto) {
 
   @IsOptional()
   notes?: string;
+
+  @IsOptional()
+  scheduledAt?: Date;
 }

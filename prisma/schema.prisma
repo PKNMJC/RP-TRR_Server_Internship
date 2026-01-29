@@ -299,6 +299,7 @@ model RepairTicket {
 
   // Additional Info
   notes       String?   @db.Text
+  scheduledAt DateTime  @default(now())
   completedAt DateTime?
 
   // Attachments

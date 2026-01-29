@@ -41,4 +41,7 @@ export class CreateRepairTicketDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  scheduledAt?: Date;
 }

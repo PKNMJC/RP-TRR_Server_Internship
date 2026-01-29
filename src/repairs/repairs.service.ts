@@ -65,6 +65,7 @@ export class RepairsService {
         userId,
         assignedTo: createRepairTicketDto.assignedTo,
         notes: createRepairTicketDto.notes,
+        scheduledAt: createRepairTicketDto.scheduledAt || new Date(),
       },
       include: {
         user: {
@@ -370,6 +371,11 @@ export class RepairsService {
     if (updateRepairTicketDto.status === RepairTicketStatus.COMPLETED) {
       updateData.completedAt = new Date();
     }
+    
+    // Ensure scheduledAt is converted to Date object if it's a string
+    if (updateData.scheduledAt && typeof updateData.scheduledAt === 'string') {
+      updateData.scheduledAt = new Date(updateData.scheduledAt);
+    }
 
     const updatedTicket = await this.prisma.repairTicket.update({
       where: { id },
@@ -511,4 +517,29 @@ export class RepairsService {
     return this.prisma.user.findUnique({
       where: { id: lineLink.userId },
     });
-  }}
+  }
+
+  /**
+   * Get formatted schedule data for calendar
+   */
+  async getSchedule() {
+    return this.prisma.repairTicket.findMany({
+      select: {
+        id: true,
+        ticketCode: true,
+        problemTitle: true,
+        status: true,
+        urgency: true,
+        createdAt: true,
+        reporterName: true,
+        location: true,
+        scheduledAt: true,
+        problemDescription: true,
+        completedAt: true,
+      },
+      orderBy: {
+        scheduledAt: 'asc',
+      },
+    });
+  }
+}
