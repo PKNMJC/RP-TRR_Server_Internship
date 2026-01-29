@@ -7,11 +7,10 @@ import { UsersModule } from './users/users.module';
 import { LoansModule } from './loans/loans.module';
 import { LineOAModule } from './line-oa/line-oa.module';
 import { RepairsModule } from './repairs/repairs.module';
-import { DepartmentsModule } from './departments/departments.module';
 import { JwtAuthGuard } from './auth/jwt.guard';
 
 @Module({
-  imports: [AuthModule, TicketsModule, NotificationModule, UsersModule, LoansModule, LineOAModule, RepairsModule, DepartmentsModule],
+  imports: [AuthModule, TicketsModule, NotificationModule, UsersModule, LoansModule, LineOAModule, RepairsModule],
   providers: [
     {
       provide: APP_GUARD,
