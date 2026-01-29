@@ -294,14 +294,6 @@ export class RepairsController {
   }
 
   /**
-   * Get repair ticket by ID
-   */
-  @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.repairsService.findOne(id);
-  }
-
-  /**
    * Get repair schedule data
    */
   @Get('schedule')
@@ -310,11 +302,35 @@ export class RepairsController {
   }
 
   /**
+   * Get statistics
+   */
+  @Get('statistics/overview')
+  async getStatistics() {
+    return this.repairsService.getStatistics();
+  }
+
+  /**
+   * Get user's repair tickets
+   */
+  @Get('user/my-tickets')
+  async getUserTickets(@Request() req: any) {
+    return this.repairsService.getUserTickets(req.user.id);
+  }
+
+  /**
    * Get repair ticket by code
    */
   @Get('code/:code')
   async findByCode(@Param('code') code: string) {
     return this.repairsService.findByCode(code);
+  }
+
+  /**
+   * Get repair ticket by ID
+   */
+  @Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.repairsService.findOne(id);
   }
 
   /**
@@ -369,21 +385,5 @@ export class RepairsController {
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.repairsService.remove(id);
-  }
-
-  /**
-   * Get user's repair tickets
-   */
-  @Get('user/my-tickets')
-  async getUserTickets(@Request() req: any) {
-    return this.repairsService.getUserTickets(req.user.id);
-  }
-
-  /**
-   * Get statistics
-   */
-  @Get('statistics/overview')
-  async getStatistics() {
-    return this.repairsService.getStatistics();
   }
 }
