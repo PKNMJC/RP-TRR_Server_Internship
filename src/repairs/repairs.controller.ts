@@ -271,26 +271,53 @@ export class RepairsController {
     @Query('assignedTo') assignedTo?: string,
     @Query('limit') limit?: string,
   ) {
-    const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'IT';
+    const logger = new Logger('RepairsController.findAll');
+    
+    try {
+      // Debug: Log user information
+      logger.log(`User from request: ${JSON.stringify(req.user)}`);
+      
+      // Safety check for user
+      if (!req.user) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+      
+      const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'IT';
 
-    const filters: any = {};
-    if (!isAdmin) {
-      filters.userId = req.user.id;
-    }
-    if (status) {
-      filters.status = status;
-    }
-    if (urgency) {
-      filters.urgency = urgency;
-    }
-    if (assignedTo) {
-      filters.assignedTo = parseInt(assignedTo);
-    }
-    if (limit) {
-      filters.take = parseInt(limit);
-    }
+      const filters: any = {};
+      if (!isAdmin) {
+        filters.userId = req.user.id;
+      }
+      if (status) {
+        filters.status = status;
+      }
+      if (urgency) {
+        filters.urgency = urgency;
+      }
+      if (assignedTo) {
+        filters.assignedTo = parseInt(assignedTo);
+      }
+      if (limit) {
+        filters.take = parseInt(limit);
+      }
 
-    return this.repairsService.findAll(filters);
+      logger.log(`Fetching repairs with filters: ${JSON.stringify(filters)}`);
+      const result = await this.repairsService.findAll(filters);
+      logger.log(`Successfully fetched ${result?.length || 0} repairs`);
+      
+      return result;
+    } catch (error: any) {
+      logger.error(`Error in findAll: ${error.message}`, error.stack);
+      
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      throw new HttpException(
+        { message: `Failed to fetch repairs: ${error.message}`, error: error.name || 'UnknownError' },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   /**
