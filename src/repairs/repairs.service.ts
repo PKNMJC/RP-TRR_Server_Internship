@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RepairTicketStatus, UrgencyLevel } from '@prisma/client';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 @Injectable()
 export class RepairsService {
@@ -8,7 +10,33 @@ export class RepairsService {
 
   async create(userId: number, dto: any, files?: Express.Multer.File[]) {
     const ticketCode = `REP-${Date.now()}`;
-    // Simple implementation for now to restore functionality
+    
+    const attachmentData: any[] = [];
+
+    if (files && files.length > 0) {
+      const uploadDir = path.join(process.cwd(), 'uploads');
+      try {
+        await fs.mkdir(uploadDir, { recursive: true });
+      } catch (err) {
+        // ignore if exists
+      }
+
+      for (const file of files) {
+        const fileExt = path.extname(file.originalname);
+        const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${fileExt}`;
+        const filePath = path.join(uploadDir, filename);
+
+        await fs.writeFile(filePath, file.buffer);
+
+        attachmentData.push({
+          filename: file.originalname,
+          fileUrl: `/uploads/${filename}`,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+        });
+      }
+    }
+
     const ticket = await this.prisma.repairTicket.create({
       data: {
         ticketCode,
@@ -22,9 +50,11 @@ export class RepairsService {
         location: dto.location,
         urgency: dto.urgency || UrgencyLevel.NORMAL,
         userId,
-        // assignedTo: dto.assignedTo, // Optional
         notes: dto.notes || null,
         scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : new Date(),
+        attachments: {
+          create: attachmentData,
+        },
       },
     });
     return ticket;
