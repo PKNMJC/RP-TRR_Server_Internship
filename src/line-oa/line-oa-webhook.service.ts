@@ -249,7 +249,7 @@ export class LineOAWebhookService {
                 take: 5,
                 orderBy: { createdAt: 'desc' },
                 include: {
-                  assignee: true,
+                  assignees: { include: { user: true } },
                 },
               },
             },
@@ -281,8 +281,9 @@ export class LineOAWebhookService {
         statusText += `${emoji} ${ticket.ticketCode}\n`;
         statusText += `ปัญหา: ${ticket.problemTitle}\n`;
         statusText += `สถานะ: ${ticket.status}\n`;
-        if (ticket.assignee) {
-          statusText += `ผู้รับผิดชอบ: ${ticket.assignee.name}\n`;
+        if (ticket.assignees && ticket.assignees.length > 0) {
+          const names = ticket.assignees.map((a: any) => a.user.name).join(', ');
+          statusText += `ผู้รับผิดชอบ: ${names}\n`;
         }
         statusText += '\n';
       });
