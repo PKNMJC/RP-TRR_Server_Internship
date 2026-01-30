@@ -111,7 +111,7 @@ export class LineOANotificationService {
 
       const flexMessage = {
         type: 'flex' as const,
-        altText: `📢 งานซ่อมใหม่ ${payload.ticketCode}`,
+        altText: `งานซ่อมใหม่ ${payload.ticketCode}`,
         contents: this.createRepairTicketFlex(payload) as any,
       };
 
@@ -158,7 +158,7 @@ export class LineOANotificationService {
 
       const flexMessage = {
         type: 'flex' as const,
-        altText: `📌 ${actionText} ${payload.ticketCode}`,
+        altText: `${actionText} ${payload.ticketCode}`,
         contents: this.createTechnicianAssignmentFlex(payload, actionText) as any,
       };
 
@@ -186,7 +186,7 @@ export class LineOANotificationService {
 
     const flexMessage = {
       type: 'flex' as const,
-      altText: `🔄 อัปเดตสถานะ ${payload.ticketCode}`,
+      altText: `อัปเดตสถานะ ${payload.ticketCode}`,
       contents: this.createStatusUpdateFlex(payload) as any,
     };
 
@@ -241,7 +241,7 @@ export class LineOANotificationService {
   private createDefaultTextMessage(payload: LineNotificationPayload) {
     return {
       type: 'text',
-      text: `📬 ${payload.title}\n\n${payload.message}${payload.actionUrl ? `\n\n👉 ${payload.actionUrl}` : ''}`,
+      text: `${payload.title}\n\n${payload.message}${payload.actionUrl ? `\n\n${payload.actionUrl}` : ''}`,
     };
   }
 
@@ -266,7 +266,7 @@ export class LineOANotificationService {
             layout: 'vertical',
             flex: 1,
             contents: [
-              { type: 'text', text: '📢 รายงานแจ้งซ่อมใหม่', color: '#FFFFFF', weight: 'bold', size: 'md' },
+              { type: 'text', text: 'รายงานแจ้งซ่อมใหม่', color: '#FFFFFF', weight: 'bold', size: 'md' },
               { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xs', margin: 'xs' },
             ],
           },
@@ -294,7 +294,7 @@ export class LineOANotificationService {
             layout: 'vertical',
             spacing: 'xs',
             contents: [
-              { type: 'text', text: '🔧 ปัญหาที่แจ้ง', size: 'xs', color: '#94A3B8' },
+              { type: 'text', text: 'ปัญหาที่แจ้ง', size: 'xs', color: '#94A3B8' },
               { type: 'text', text: payload.problemTitle, size: 'md', weight: 'bold', color: '#1F2937', wrap: true },
             ],
           },
@@ -309,21 +309,21 @@ export class LineOANotificationService {
               {
                 type: 'box', layout: 'horizontal', spacing: 'sm',
                 contents: [
-                  { type: 'text', text: '👤 ผู้แจ้ง:', size: 'xs', color: '#64748B', flex: 2 },
+                  { type: 'text', text: 'ผู้แจ้ง:', size: 'xs', color: '#64748B', flex: 2 },
                   { type: 'text', text: payload.reporterName, size: 'xs', color: '#334155', weight: 'bold', flex: 5 }
                 ]
               },
               {
                 type: 'box', layout: 'horizontal', spacing: 'sm',
                 contents: [
-                  { type: 'text', text: '🏢 แผนก:', size: 'xs', color: '#64748B', flex: 2 },
+                  { type: 'text', text: 'แผนก:', size: 'xs', color: '#64748B', flex: 2 },
                   { type: 'text', text: payload.department, size: 'xs', color: '#334155', flex: 5 }
                 ]
               },
               {
                 type: 'box', layout: 'horizontal', spacing: 'sm',
                 contents: [
-                  { type: 'text', text: '📍 สถานที่:', size: 'xs', color: '#64748B', flex: 2 },
+                  { type: 'text', text: 'สถานที่:', size: 'xs', color: '#64748B', flex: 2 },
                   { type: 'text', text: payload.location, size: 'xs', color: '#334155', flex: 5 }
                 ]
               }
@@ -346,7 +346,7 @@ export class LineOANotificationService {
         backgroundColor: '#111827',
         paddingAll: '15px',
         contents: [
-          { type: 'text', text: `📌 ${actionText}`, color: '#FFFFFF', weight: 'bold', size: 'md' },
+          { type: 'text', text: `${actionText}`, color: '#FFFFFF', weight: 'bold', size: 'md' },
           { type: 'text', text: payload.ticketCode, color: '#FFFFFF', size: 'xs', margin: 'xs', opacity: '0.7' },
         ],
       },
@@ -378,7 +378,7 @@ export class LineOANotificationService {
               {
                 type: 'box', layout: 'horizontal',
                 contents: [
-                  { type: 'text', text: '👤 ผู้แจ้ง:', size: 'xs', color: '#64748B', flex: 2 },
+                  { type: 'text', text: 'ผู้แจ้ง:', size: 'xs', color: '#64748B', flex: 2 },
                   { type: 'text', text: payload.reporterName, size: 'xs', color: '#334155', flex: 5 }
                 ]
               },
@@ -415,7 +415,7 @@ export class LineOANotificationService {
             contents: [
               { 
                 type: 'text', 
-                text: `${config.emoji} ${config.text}`, 
+                text: `${config.text}`, 
                 color: '#FFFFFF', 
                 weight: 'bold', 
                 size: 'lg' 
@@ -446,7 +446,7 @@ export class LineOANotificationService {
             layout: 'vertical',
             spacing: 'xs',
             contents: [
-              { type: 'text', text: '🔧 ปัญหาที่แจ้ง', size: 'xs', color: '#94A3B8' },
+              { type: 'text', text: 'ปัญหาที่แจ้ง', size: 'xs', color: '#94A3B8' },
               { type: 'text', text: payload.problemTitle, size: 'md', weight: 'bold', color: '#1F2937', wrap: true },
             ],
           }] : []),
@@ -500,7 +500,7 @@ export class LineOANotificationService {
             cornerRadius: 'md',
             paddingAll: '12px',
             contents: [
-              { type: 'text', text: '💬 หมายเหตุ', size: 'xxs', color: '#6B7280' },
+              { type: 'text', text: 'หมายเหตุ', size: 'xxs', color: '#6B7280' },
               { type: 'text', text: payload.remark, size: 'sm', color: '#374151', wrap: true, margin: 'xs' },
             ],
           }] : []),
@@ -538,11 +538,11 @@ export class LineOANotificationService {
 
   private getStatusConfig(status: string) {
     return ({
-      PENDING: { color: COLORS.WARNING, text: 'รอดำเนินการ', emoji: '⏳' },
-      IN_PROGRESS: { color: COLORS.INFO, text: 'กำลังดำเนินการ', emoji: '🔧' },
-      COMPLETED: { color: COLORS.SUCCESS, text: 'เสร็จสิ้น', emoji: '✅' },
-      WAITING_USER: { color: COLORS.WARNING, text: 'รอข้อมูลจากผู้แจ้ง', emoji: '📝' },
-      CANCELLED: { color: COLORS.SECONDARY, text: 'ยกเลิก', emoji: '❌' },
-    }[status] || { color: COLORS.PRIMARY, text: status, emoji: '📋' });
+      PENDING: { color: COLORS.WARNING, text: 'รอดำเนินการ' },
+      IN_PROGRESS: { color: COLORS.INFO, text: 'กำลังดำเนินการ' },
+      COMPLETED: { color: COLORS.SUCCESS, text: 'เสร็จสิ้น' },
+      WAITING_USER: { color: COLORS.WARNING, text: 'รอข้อมูลจากผู้แจ้ง' },
+      CANCELLED: { color: COLORS.SECONDARY, text: 'ยกเลิก' },
+    }[status] || { color: COLORS.PRIMARY, text: status });
   }
 }
