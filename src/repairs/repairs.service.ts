@@ -72,14 +72,23 @@ export class RepairsService {
     if (dto.assignedTo !== undefined) updateData.assignedTo = dto.assignedTo;
     if (dto.completedAt !== undefined) updateData.completedAt = new Date(dto.completedAt);
 
-    return this.prisma.repairTicket.update({
-      where: { id },
-      data: updateData,
-      include: {
-        user: true,
-        assignee: true,
-      },
-    });
+    try {
+      const ticket = await this.prisma.repairTicket.update({
+        where: { id },
+        data: updateData,
+        include: {
+          user: true,
+          assignee: true,
+        },
+      });
+      return ticket;
+    } catch (error: any) {
+      // Handle "Record not found" error
+      if (error.code === 'P2025') {
+        throw new NotFoundException(`Repair ticket #${id} not found`);
+      }
+      throw error;
+    }
   }
 
   async remove(id: number) {

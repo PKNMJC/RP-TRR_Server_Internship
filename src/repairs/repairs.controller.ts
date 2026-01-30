@@ -245,26 +245,31 @@ export class RepairsController {
     @Body() dto: UpdateRepairTicketDto,
     @Req() req: any,
   ) {
-    const updated = await this.repairsService.update(
-      id,
-      dto,
-      req.user.id,
-    );
+    try {
+      const updated = await this.repairsService.update(
+        id,
+        dto,
+        req.user.id,
+      );
 
-    if (dto.status) {
-      this.lineNotificationService
-        .notifyRepairTicketStatusUpdate(updated.userId, {
-          ticketCode: updated.ticketCode,
-          problemTitle: updated.problemTitle,
-          status: dto.status,
-          remark: dto.notes,
-          updatedAt: new Date(),
-          technicianName: (updated as any).assignee?.name,
-        })
-        .catch(() => this.logger.warn('User notify failed'));
+      if (dto.status && updated?.userId) {
+        this.lineNotificationService
+          .notifyRepairTicketStatusUpdate(updated.userId, {
+            ticketCode: updated.ticketCode,
+            problemTitle: updated.problemTitle,
+            status: dto.status,
+            remark: dto.notes,
+            updatedAt: new Date(),
+            technicianName: (updated as any).assignee?.name,
+          })
+          .catch(() => this.logger.warn('User notify failed'));
+      }
+
+      return updated;
+    } catch (error: any) {
+      this.logger.error(`Update repair #${id} failed: ${error.message}`, error.stack);
+      throw error;
     }
-
-    return updated;
   }
 
   @Delete(':id')
