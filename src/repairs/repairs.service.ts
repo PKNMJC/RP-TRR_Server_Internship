@@ -59,11 +59,25 @@ export class RepairsService {
   }
 
   async update(id: number, dto: any, updatedById: number) {
-     return this.prisma.repairTicket.update({
+    // Build update data with only valid fields
+    const updateData: any = {};
+
+    if (dto.status !== undefined) updateData.status = dto.status;
+    if (dto.notes !== undefined) updateData.notes = dto.notes;
+    if (dto.scheduledAt !== undefined) updateData.scheduledAt = new Date(dto.scheduledAt);
+    if (dto.problemTitle !== undefined) updateData.problemTitle = dto.problemTitle;
+    if (dto.problemDescription !== undefined) updateData.problemDescription = dto.problemDescription;
+    if (dto.location !== undefined) updateData.location = dto.location;
+    if (dto.urgency !== undefined) updateData.urgency = dto.urgency;
+    if (dto.assignedTo !== undefined) updateData.assignedTo = dto.assignedTo;
+    if (dto.completedAt !== undefined) updateData.completedAt = new Date(dto.completedAt);
+
+    return this.prisma.repairTicket.update({
       where: { id },
-      data: {
-        ...dto,
-        scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : undefined,
+      data: updateData,
+      include: {
+        user: true,
+        assignee: true,
       },
     });
   }
