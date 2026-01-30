@@ -253,6 +253,7 @@ export class RepairsController {
       );
 
       if (dto.status && updated?.userId) {
+        const technicianNames = (updated as any).assignees?.map((a: any) => a.user.name) || [];
         this.lineNotificationService
           .notifyRepairTicketStatusUpdate(updated.userId, {
             ticketCode: updated.ticketCode,
@@ -260,7 +261,7 @@ export class RepairsController {
             status: dto.status,
             remark: dto.notes,
             updatedAt: new Date(),
-            technicianName: (updated as any).assignee?.name,
+            technicianNames: technicianNames,
           })
           .catch(() => this.logger.warn('User notify failed'));
       }

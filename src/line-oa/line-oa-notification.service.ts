@@ -49,7 +49,7 @@ export interface RepairStatusUpdatePayload {
   problemDescription?: string;
   status: string;
   remark?: string;
-  technicianName?: string;
+  technicianNames?: string[]; // Changed to array for multi-assignee
   nextStep?: string;
   updatedAt?: Date;
 }
@@ -464,12 +464,12 @@ export class LineOANotificationService {
                 layout: 'vertical',
                 width: '36px',
                 height: '36px',
-                backgroundColor: payload.technicianName ? '#10B981' : '#F59E0B',
+                backgroundColor: payload.technicianNames && payload.technicianNames.length > 0 ? '#10B981' : '#F59E0B',
                 cornerRadius: 'xxl',
                 justifyContent: 'center',
                 alignItems: 'center',
                 contents: [
-                  { type: 'text', text: payload.technicianName ? '👨‍🔧' : '⏳', size: 'md' }
+                  { type: 'text', text: payload.technicianNames && payload.technicianNames.length > 0 ? '👨‍🔧' : '⏳', size: 'md' }
                 ],
               },
               {
@@ -480,10 +480,13 @@ export class LineOANotificationService {
                   { type: 'text', text: 'ผู้รับผิดชอบ', size: 'xxs', color: '#94A3B8' },
                   { 
                     type: 'text', 
-                    text: payload.technicianName || 'รอมอบหมาย', 
+                    text: payload.technicianNames && payload.technicianNames.length > 0 
+                      ? payload.technicianNames.join(', ') 
+                      : 'รอมอบหมาย', 
                     size: 'sm', 
                     weight: 'bold', 
-                    color: payload.technicianName ? '#059669' : '#D97706' 
+                    color: payload.technicianNames && payload.technicianNames.length > 0 ? '#059669' : '#D97706',
+                    wrap: true
                   },
                 ],
               },
