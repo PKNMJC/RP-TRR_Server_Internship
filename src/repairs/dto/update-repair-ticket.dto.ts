@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateRepairTicketDto } from './create-repair-ticket.dto';
-import { IsOptional, IsEnum } from 'class-validator';
+import { IsOptional, IsEnum, IsNumber } from 'class-validator';
 import { RepairTicketStatus } from '@prisma/client';
 
 export class UpdateRepairTicketDto extends PartialType(CreateRepairTicketDto) {
@@ -13,4 +13,11 @@ export class UpdateRepairTicketDto extends PartialType(CreateRepairTicketDto) {
 
   @IsOptional()
   scheduledAt?: Date;
+
+  @IsOptional()
+  @IsNumber()
+  assignedTo?: number;
+
+  @IsOptional()
+  completedAt?: Date;
 }
