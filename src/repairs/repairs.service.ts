@@ -65,7 +65,7 @@ export class RepairsService {
       where: { id },
       include: {
         user: true,
-        assignee: true,
+        assignees: { include: { user: true } },
         attachments: true,
         logs: { include: { user: true }, orderBy: { createdAt: 'desc' } },
       },
@@ -79,7 +79,7 @@ export class RepairsService {
       where: { ticketCode },
       include: {
         user: true,
-        assignee: true,
+        assignees: { include: { user: true } },
         attachments: true,
         logs: { include: { user: true }, orderBy: { createdAt: 'desc' } },
       },
@@ -102,21 +102,31 @@ export class RepairsService {
     if (dto.problemDescription !== undefined) updateData.problemDescription = dto.problemDescription;
     if (dto.location !== undefined) updateData.location = dto.location;
     if (dto.urgency !== undefined) updateData.urgency = dto.urgency;
-    
-    // Explicitly handle assignedTo
-    if (dto.assignedTo !== undefined) {
-      // If null, we want to set it to null (disconnect)
-      // If number, we set it to number
-      updateData.assignedTo = dto.assignedTo;
-    }
 
     try {
+      // Handle multi-assignee sync
+      if (dto.assigneeIds !== undefined) {
+        // Delete all existing assignees and recreate
+        await this.prisma.repairTicketAssignee.deleteMany({
+          where: { repairTicketId: id },
+        });
+        
+        if (dto.assigneeIds.length > 0) {
+          await this.prisma.repairTicketAssignee.createMany({
+            data: dto.assigneeIds.map((userId: number) => ({
+              repairTicketId: id,
+              userId,
+            })),
+          });
+        }
+      }
+
       const ticket = await this.prisma.repairTicket.update({
         where: { id },
         data: updateData,
         include: {
           user: true,
-          assignee: true,
+          assignees: { include: { user: true } },
         },
       });
       return ticket;
@@ -125,7 +135,7 @@ export class RepairsService {
       if (error.code === 'P2025') {
         throw new NotFoundException(`Repair ticket #${id} not found`);
       }
-      // Handle "Foreign Key Constraint failed" (e.g. assignedTo user doesn't exist)
+      // Handle "Foreign Key Constraint failed" (e.g. assignee user doesn't exist)
       if (error.code === 'P2003') {
         throw new BadRequestException(`ข้อมูลอ้างอิงไม่ถูกต้อง (เช่น ผู้รับผิดชอบไม่มีอยู่ในระบบ)`);
       }
@@ -223,7 +233,7 @@ export class RepairsService {
       take: limit,
       include: {
         user: true,
-        assignee: true,
+        assignees: { include: { user: true } },
         attachments: true,
         logs: {
           include: { user: true },
@@ -246,7 +256,7 @@ export class RepairsService {
       where: { userId },
       include: {
         user: true,
-        assignee: true,
+        assignees: { include: { user: true } },
         attachments: true,
         logs: {
           include: { user: true },
