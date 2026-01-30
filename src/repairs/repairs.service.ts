@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RepairTicketStatus, UrgencyLevel } from '@prisma/client';
 
@@ -40,7 +40,7 @@ export class RepairsService {
         logs: { include: { user: true }, orderBy: { createdAt: 'desc' } },
       },
     });
-    if (!ticket) throw new Error(`Repair ticket #${id} not found`);
+    if (!ticket) throw new NotFoundException(`Repair ticket #${id} not found`);
     return ticket;
   }
 
@@ -54,7 +54,7 @@ export class RepairsService {
         logs: { include: { user: true }, orderBy: { createdAt: 'desc' } },
       },
     });
-    if (!ticket) throw new Error(`Ticket ${ticketCode} not found`);
+    if (!ticket) throw new NotFoundException(`Ticket ${ticketCode} not found`);
     return ticket;
   }
 
