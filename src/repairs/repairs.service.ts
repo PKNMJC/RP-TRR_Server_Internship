@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RepairTicketStatus, UrgencyLevel } from '@prisma/client';
 
@@ -64,13 +64,21 @@ export class RepairsService {
 
     if (dto.status !== undefined) updateData.status = dto.status;
     if (dto.notes !== undefined) updateData.notes = dto.notes;
-    if (dto.scheduledAt !== undefined) updateData.scheduledAt = new Date(dto.scheduledAt);
+    // Dates need careful handling
+    if (dto.scheduledAt) updateData.scheduledAt = new Date(dto.scheduledAt);
+    if (dto.completedAt) updateData.completedAt = new Date(dto.completedAt);
+    
     if (dto.problemTitle !== undefined) updateData.problemTitle = dto.problemTitle;
     if (dto.problemDescription !== undefined) updateData.problemDescription = dto.problemDescription;
     if (dto.location !== undefined) updateData.location = dto.location;
     if (dto.urgency !== undefined) updateData.urgency = dto.urgency;
-    if (dto.assignedTo !== undefined) updateData.assignedTo = dto.assignedTo;
-    if (dto.completedAt !== undefined) updateData.completedAt = new Date(dto.completedAt);
+    
+    // Explicitly handle assignedTo
+    if (dto.assignedTo !== undefined) {
+      // If null, we want to set it to null (disconnect)
+      // If number, we set it to number
+      updateData.assignedTo = dto.assignedTo;
+    }
 
     try {
       const ticket = await this.prisma.repairTicket.update({
@@ -86,6 +94,10 @@ export class RepairsService {
       // Handle "Record not found" error
       if (error.code === 'P2025') {
         throw new NotFoundException(`Repair ticket #${id} not found`);
+      }
+      // Handle "Foreign Key Constraint failed" (e.g. assignedTo user doesn't exist)
+      if (error.code === 'P2003') {
+        throw new BadRequestException(`ข้อมูลอ้างอิงไม่ถูกต้อง (เช่น ผู้รับผิดชอบไม่มีอยู่ในระบบ)`);
       }
       throw error;
     }
