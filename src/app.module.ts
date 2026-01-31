@@ -10,6 +10,7 @@ import { LineOAModule } from './line-oa/line-oa.module';
 import { RepairsModule } from './repairs/repairs.module';
 import { StockModule } from './stock/stock.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { DataManagementModule } from './data-management/data-management.module';
 import { JwtAuthGuard } from './auth/jwt.guard';
 
 @Module({
@@ -28,6 +29,7 @@ import { JwtAuthGuard } from './auth/jwt.guard';
     RepairsModule,
     StockModule,
     CloudinaryModule,
+    DataManagementModule,
   ],
   providers: [
     {

@@ -34,6 +34,7 @@
     "cloudinary": "^2.9.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "helmet": "^8.1.0",
     "line": "^0.1.8",
     "passport": "^0.7.0",
