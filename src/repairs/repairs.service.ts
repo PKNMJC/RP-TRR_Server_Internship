@@ -2,6 +2,11 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { RepairTicketStatus, UrgencyLevel } from '@prisma/client';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import * as path from 'path';
+
+// Security: Allowed file types and size limits
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 @Injectable()
 export class RepairsService {
@@ -12,28 +17,54 @@ export class RepairsService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
+  /**
+   * Sanitize filename to prevent path traversal attacks
+   */
+  private sanitizeFilename(filename: string): string {
+    const basename = path.basename(filename);
+    return basename.replace(/[^a-zA-Z0-9.-]/g, '_');
+  }
+
   async create(userId: number, dto: any, files?: Express.Multer.File[]) {
     const ticketCode = `REP-${Date.now()}`;
     
     const attachmentData: any[] = [];
 
-    // Upload files to Cloudinary instead of local filesystem
+    // Upload files to Cloudinary with security validations
     if (files && files.length > 0) {
       for (const file of files) {
         try {
+          // SECURITY: Validate MIME type
+          if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+            this.logger.warn(`Rejected file with invalid MIME type: ${file.mimetype}`);
+            throw new BadRequestException(`Invalid file type: ${file.mimetype}. Only images are allowed.`);
+          }
+
+          // SECURITY: Validate file size
+          if (file.size > MAX_FILE_SIZE) {
+            this.logger.warn(`Rejected file exceeding size limit: ${file.size} bytes`);
+            throw new BadRequestException(`File size exceeds 5MB limit`);
+          }
+
+          // SECURITY: Sanitize filename
+          const sanitizedName = this.sanitizeFilename(file.originalname);
+
           const result = await this.cloudinaryService.uploadFile(
             file.buffer,
-            file.originalname,
+            sanitizedName,
             'repairs', // Cloudinary folder
           );
 
           attachmentData.push({
-            filename: file.originalname,
+            filename: sanitizedName,
             fileUrl: result.url,
             fileSize: file.size,
             mimeType: file.mimetype,
           });
         } catch (error) {
+          if (error instanceof BadRequestException) {
+            throw error; // Re-throw validation errors
+          }
           this.logger.error(`Failed to upload file ${file.originalname}:`, error);
           // Continue with other files even if one fails
         }

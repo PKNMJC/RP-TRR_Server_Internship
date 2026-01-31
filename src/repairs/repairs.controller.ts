@@ -16,6 +16,7 @@ import {
   Logger,
   ParseIntPipe,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { RepairsService } from './repairs.service';
@@ -275,7 +276,14 @@ export class RepairsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    // SECURITY: Only ADMIN and IT can delete tickets
+    if (req.user.role !== Role.ADMIN && req.user.role !== Role.IT) {
+      throw new ForbiddenException('Permission denied: Only ADMIN or IT can delete repair tickets');
+    }
     return this.repairsService.remove(id);
   }
 }

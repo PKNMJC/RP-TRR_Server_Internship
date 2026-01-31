@@ -4,6 +4,7 @@ import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import * as express from 'express';
+import helmet from 'helmet';
 
 import { join } from 'path';
 
@@ -13,17 +14,25 @@ async function bootstrap() {
   const httpAdapter = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  // SECURITY: Add security headers
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow cross-origin for images
+  }));
+
+  // Reduced body size limit for security (was 50mb, now 10mb)
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
   
   // Serve static files from uploads directory
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 
-  // DEBUG: Log every request
-  app.use((req, res, next) => {
-    console.log(`[REQUEST] ${req.method} ${req.url}`);
-    next();
-  });
+  // Debug logging - only in development
+  if (process.env.NODE_ENV !== 'production') {
+    app.use((req, res, next) => {
+      console.log(`[REQUEST] ${req.method} ${req.url}`);
+      next();
+    });
+  }
 
   // ✅ CORS Configuration
   const allowedOrigins = [
@@ -65,3 +74,4 @@ async function bootstrap() {
 }
 
 bootstrap();
+
