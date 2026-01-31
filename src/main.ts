@@ -7,6 +7,7 @@ import * as express from 'express';
 import helmet from 'helmet';
 
 import { join } from 'path';
+import compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -18,6 +19,9 @@ async function bootstrap() {
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow cross-origin for images
   }));
+
+  // PERFORMANCE: Enable Gzip compression
+  app.use(compression());
 
   // Reduced body size limit for security (was 50mb, now 10mb)
   app.use(express.json({ limit: '10mb' }));

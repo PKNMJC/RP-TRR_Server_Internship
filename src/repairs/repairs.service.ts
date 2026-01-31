@@ -185,33 +185,25 @@ export class RepairsService {
   }
 
   async getStatistics() {
-    const [total, pending, inProgress, waitingParts, completed, cancelled] =
-      await Promise.all([
-        this.prisma.repairTicket.count(),
-        this.prisma.repairTicket.count({
-          where: { status: RepairTicketStatus.PENDING },
-        }),
-        this.prisma.repairTicket.count({
-          where: { status: RepairTicketStatus.IN_PROGRESS },
-        }),
-        this.prisma.repairTicket.count({
-          where: { status: RepairTicketStatus.WAITING_PARTS },
-        }),
-        this.prisma.repairTicket.count({
-          where: { status: RepairTicketStatus.COMPLETED },
-        }),
-        this.prisma.repairTicket.count({
-          where: { status: RepairTicketStatus.CANCELLED },
-        }),
-      ]);
+    const stats = await this.prisma.repairTicket.groupBy({
+      by: ['status'],
+      _count: {
+        status: true,
+      },
+    });
+
+    const total = stats.reduce((acc, curr) => acc + curr._count.status, 0);
+    
+    const getCount = (status: RepairTicketStatus) => 
+      stats.find(s => s.status === status)?._count.status || 0;
 
     return {
       total,
-      pending,
-      inProgress,
-      waitingParts,
-      completed,
-      cancelled,
+      pending: getCount(RepairTicketStatus.PENDING),
+      inProgress: getCount(RepairTicketStatus.IN_PROGRESS),
+      waitingParts: getCount(RepairTicketStatus.WAITING_PARTS),
+      completed: getCount(RepairTicketStatus.COMPLETED),
+      cancelled: getCount(RepairTicketStatus.CANCELLED),
     };
   }
 
@@ -268,11 +260,7 @@ export class RepairsService {
       include: {
         user: true,
         assignees: { include: { user: true } },
-        attachments: true,
-        logs: {
-          include: { user: true },
-          orderBy: { createdAt: 'desc' },
-        },
+        // Optimized: Removed heavy relations (attachments, logs) for list view
       },
       orderBy: { createdAt: 'desc' },
     });
