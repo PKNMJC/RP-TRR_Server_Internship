@@ -27,6 +27,8 @@
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^5.7.0",
     "@supabase/supabase-js": "^2.90.1",
+    "@types/adm-zip": "^0.5.7",
+    "adm-zip": "^0.5.16",
     "axios": "^1.6.0",
     "bcrypt": "^5.1.0",
     "class-transformer": "^0.5.1",

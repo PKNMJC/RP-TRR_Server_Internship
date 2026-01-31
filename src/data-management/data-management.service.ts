@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataTypeInfo } from './dto/clear-data.dto';
 import * as ExcelJS from 'exceljs';
+import AdmZip = require('adm-zip');
 
 export type DataType = 'repairs' | 'tickets' | 'loans' | 'notifications' | 'stock' | 'departments';
 
@@ -80,17 +81,49 @@ export class DataManagementService {
     };
   }
 
-  async exportToExcel(types: DataType[]): Promise<Buffer> {
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'TRR System';
-    workbook.created = new Date();
-
-    for (const type of types) {
+  async exportToExcel(types: DataType[]): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    // If only one type is selected, export directly as .xlsx
+    if (types.length === 1) {
+      const type = types[0];
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'TRR System';
+      workbook.created = new Date();
+      
       await this.addSheetForType(workbook, type);
+      
+      const buffer = await workbook.xlsx.writeBuffer();
+      const def = this.dataTypeDefinitions[type];
+      
+      return {
+        buffer: Buffer.from(buffer),
+        fileName: `${def.key}-${new Date().toISOString().split('T')[0]}.xlsx`,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      };
     }
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer);
+    // If multiple types, export as .zip containing multiple .xlsx files
+    const zip = new AdmZip();
+    
+    for (const type of types) {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'TRR System';
+      workbook.created = new Date();
+      
+      await this.addSheetForType(workbook, type);
+      
+      const buffer = await workbook.xlsx.writeBuffer();
+      const def = this.dataTypeDefinitions[type];
+      
+      // Add file to zip
+      zip.addFile(`${def.label}.xlsx`, Buffer.from(buffer));
+    }
+
+    const zipBuffer = zip.toBuffer();
+    return {
+      buffer: zipBuffer,
+      fileName: `data-export-${new Date().toISOString().split('T')[0]}.zip`,
+      mimeType: 'application/zip'
+    };
   }
 
   private async addSheetForType(workbook: ExcelJS.Workbook, type: DataType) {

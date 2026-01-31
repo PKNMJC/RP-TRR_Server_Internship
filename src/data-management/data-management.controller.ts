@@ -19,31 +19,30 @@ export class DataManagementController {
 
   @Post('export')
   async exportData(@Body() dto: ExportDataDto, @Res() res: Response) {
-    const buffer = await this.dataManagementService.exportToExcel(dto.types as DataType[]);
+    const result = await this.dataManagementService.exportToExcel(dto.types as DataType[]);
     
-    const filename = `data-export-${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+    res.setHeader('Content-Length', result.buffer.length);
     
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', buffer.length);
-    
-    return res.status(HttpStatus.OK).send(buffer);
+    return res.status(HttpStatus.OK).send(result.buffer);
   }
 
   @Post('clear')
   async clearData(@Body() dto: ClearDataDto, @Res() res: Response) {
     // If exportFirst is true, first export then clear
     if (dto.exportFirst) {
-      const buffer = await this.dataManagementService.exportToExcel(dto.types as DataType[]);
+      const result = await this.dataManagementService.exportToExcel(dto.types as DataType[]);
       await this.dataManagementService.clearData(dto.types as DataType[]);
       
-      const filename = `data-backup-${new Date().toISOString().split('T')[0]}.xlsx`;
+      // Prefix with backup- to indicate it's a backup before delete
+      const filename = `backup-${result.fileName}`;
       
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Type', result.mimeType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Content-Length', result.buffer.length);
       
-      return res.status(HttpStatus.OK).send(buffer);
+      return res.status(HttpStatus.OK).send(result.buffer);
     }
     
     // Just clear without export
