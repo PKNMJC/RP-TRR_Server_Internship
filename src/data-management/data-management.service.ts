@@ -15,37 +15,37 @@ export class DataManagementService {
     repairs: {
       key: 'repairs',
       label: 'การแจ้งซ่อม',
-      icon: '🔧',
+      icon: 'Wrench',
       description: 'ข้อมูลการแจ้งซ่อมทั้งหมด รวมถึง logs และ attachments',
     },
     tickets: {
       key: 'tickets',
       label: 'Tickets',
-      icon: '🎫',
+      icon: 'Ticket',
       description: 'ระบบ Ticket เดิม รวมถึง logs และ attachments',
     },
     loans: {
       key: 'loans',
       label: 'การยืม',
-      icon: '📦',
+      icon: 'Clock',
       description: 'ข้อมูลการยืมอุปกรณ์ทั้งหมด',
     },
     notifications: {
       key: 'notifications',
       label: 'การแจ้งเตือน',
-      icon: '🔔',
+      icon: 'Bell',
       description: 'การแจ้งเตือนทั้งหมด รวมถึง LINE notifications',
     },
     stock: {
       key: 'stock',
       label: 'สต็อก',
-      icon: '📊',
+      icon: 'Package',
       description: 'ข้อมูลสินค้าคงคลังทั้งหมด',
     },
     departments: {
       key: 'departments',
       label: 'แผนก',
-      icon: '🏢',
+      icon: 'Users',
       description: 'ข้อมูลแผนกทั้งหมด',
     },
   };
