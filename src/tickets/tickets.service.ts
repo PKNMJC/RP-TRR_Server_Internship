@@ -3,12 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { Priority } from '@prisma/client';
-import * as path from 'path';
-import * as fs from 'fs';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class TicketsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudinaryService: CloudinaryService,
+  ) {}
 
   private generateTicketCode(): string {
     const timestamp = Date.now().toString().slice(-6);
@@ -16,14 +18,6 @@ export class TicketsService {
       .toString()
       .padStart(4, '0');
     return `TKT-${new Date().getFullYear()}-${timestamp}${random}`;
-  }
-
-  private ensureUploadsDir(): string {
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    return uploadsDir;
   }
 
   async create(
@@ -86,27 +80,35 @@ export class TicketsService {
       },
     });
 
-    // Handle file uploads
+    // Handle file uploads to Cloudinary
     if (files && files.length > 0) {
-      const uploadsDir = this.ensureUploadsDir();
-      const attachments = files.map((file) => {
-        const filename = `${ticketCode}-${Date.now()}-${file.originalname}`;
-        const filePath = path.join(uploadsDir, filename);
-        
-        fs.writeFileSync(filePath, file.buffer);
+      const attachments: any[] = [];
+      for (const file of files) {
+        try {
+          const result = await this.cloudinaryService.uploadFile(
+            file.buffer,
+            file.originalname,
+            'tickets', // Cloudinary folder
+          );
 
-        return {
-          ticketId: ticket.id,
-          filename: file.originalname,
-          fileUrl: `/uploads/${filename}`,
-          fileSize: file.size,
-          mimeType: file.mimetype,
-        };
-      });
+          attachments.push({
+            ticketId: ticket.id,
+            filename: file.originalname,
+            fileUrl: result.url,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+          });
+        } catch (error) {
+          console.error(`Failed to upload file ${file.originalname}:`, error);
+          // Continue with other files even if one fails
+        }
+      }
 
-      await this.prisma.attachment.createMany({
-        data: attachments,
-      });
+      if (attachments.length > 0) {
+        await this.prisma.attachment.createMany({
+          data: attachments,
+        });
+      }
     }
 
     return ticket;

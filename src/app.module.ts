@@ -8,6 +8,7 @@ import { LoansModule } from './loans/loans.module';
 import { LineOAModule } from './line-oa/line-oa.module';
 import { RepairsModule } from './repairs/repairs.module';
 import { StockModule } from './stock/stock.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { JwtAuthGuard } from './auth/jwt.guard';
 
 @Module({
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from './auth/jwt.guard';
     LineOAModule,
     RepairsModule,
     StockModule,
+    CloudinaryModule,
   ],
   providers: [
     {

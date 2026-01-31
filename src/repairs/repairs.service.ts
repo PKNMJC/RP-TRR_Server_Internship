@@ -1,39 +1,42 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RepairTicketStatus, UrgencyLevel } from '@prisma/client';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class RepairsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(RepairsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   async create(userId: number, dto: any, files?: Express.Multer.File[]) {
     const ticketCode = `REP-${Date.now()}`;
     
     const attachmentData: any[] = [];
 
+    // Upload files to Cloudinary instead of local filesystem
     if (files && files.length > 0) {
-      const uploadDir = path.join(process.cwd(), 'uploads');
-      try {
-        await fs.mkdir(uploadDir, { recursive: true });
-      } catch (err) {
-        // ignore if exists
-      }
-
       for (const file of files) {
-        const fileExt = path.extname(file.originalname);
-        const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${fileExt}`;
-        const filePath = path.join(uploadDir, filename);
+        try {
+          const result = await this.cloudinaryService.uploadFile(
+            file.buffer,
+            file.originalname,
+            'repairs', // Cloudinary folder
+          );
 
-        await fs.writeFile(filePath, file.buffer);
-
-        attachmentData.push({
-          filename: file.originalname,
-          fileUrl: `/uploads/${filename}`,
-          fileSize: file.size,
-          mimeType: file.mimetype,
-        });
+          attachmentData.push({
+            filename: file.originalname,
+            fileUrl: result.url,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+          });
+        } catch (error) {
+          this.logger.error(`Failed to upload file ${file.originalname}:`, error);
+          // Continue with other files even if one fails
+        }
       }
     }
 
